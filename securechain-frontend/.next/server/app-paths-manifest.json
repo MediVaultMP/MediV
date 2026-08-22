@@ -1,0 +1,9 @@
+{
+  "/login/page": "app/login/page.js",
+  "/patient/consents/page": "app/patient/consents/page.js",
+  "/patient/prescriptions/page": "app/patient/prescriptions/page.js",
+  "/admin/dashboard/page": "app/admin/dashboard/page.js",
+  "/admin/users/page": "app/admin/users/page.js",
+  "/admin/chain-log/page": "app/admin/chain-log/page.js",
+  "/admin/audit-log/page": "app/admin/audit-log/page.js"
+}
