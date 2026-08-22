@@ -1,2 +1,11 @@
 node_modules/
+
 .env
+blockchain/.env
+
+coverage/
+
+blockchain/artifacts/
+blockchain/cache/
+
+npm-debug.log*
