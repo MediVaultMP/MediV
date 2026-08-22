@@ -3,13 +3,14 @@ import path from 'node:path';
 import { AppError } from '../utils/app-error.js';
 
 export class MedicalRecordService {
-  constructor({ medicalRecordRepository, medicalStorage, fileEncryptionService, userRepository, recordRegistryClient, consentService }) {
+  constructor({ medicalRecordRepository, medicalStorage, fileEncryptionService, userRepository, recordRegistryClient, consentService, auditService }) {
     this.medicalRecordRepository = medicalRecordRepository;
     this.medicalStorage = medicalStorage;
     this.fileEncryptionService = fileEncryptionService;
     this.userRepository = userRepository;
     this.recordRegistryClient = recordRegistryClient;
     this.consentService = consentService;
+    this.auditService = auditService;
   }
 
   async uploadOwnRecord(patientUserId, file, metadata) {
@@ -32,6 +33,7 @@ export class MedicalRecordService {
         encryption
       });
       if (this.recordRegistryClient) record = await this.registerRecordOnChain(patientUserId, record);
+      await this.auditService?.record({ eventType: 'record_created', actorUserId: patientUserId, subjectUserId: patientUserId, resourceType: 'medical_record', resourceId: record.id, metadata: {} });
       return this.publicRecord(record);
     } catch (error) {
       await this.medicalStorage.delete(storageKey).catch(() => {});
@@ -47,7 +49,9 @@ export class MedicalRecordService {
     const record = await this.medicalRecordRepository.findByIdForPatient(recordId, patientUserId);
     if (!record) throw new AppError(404, 'Medical record not found.', 'RECORD_NOT_FOUND');
     const ciphertext = await this.medicalStorage.get(record.storage_key);
-    return { record: this.publicRecord(record), body: this.fileEncryptionService.decrypt(ciphertext, record) };
+    const body = this.fileEncryptionService.decrypt(ciphertext, record);
+    await this.auditService?.record({ eventType: 'record_accessed', actorUserId: patientUserId, subjectUserId: patientUserId, resourceType: 'medical_record', resourceId: record.id, metadata: {} });
+    return { record: this.publicRecord(record), body };
   }
 
   async listRecordsForDoctor(doctorUserId, patientUserId) {
@@ -60,7 +64,16 @@ export class MedicalRecordService {
     const record = await this.medicalRecordRepository.findByIdForPatient(recordId, patientUserId);
     if (!record) throw new AppError(404, 'Medical record not found.', 'RECORD_NOT_FOUND');
     const ciphertext = await this.medicalStorage.get(record.storage_key);
-    return { record: this.publicRecord(record), body: this.fileEncryptionService.decrypt(ciphertext, record) };
+    const body = this.fileEncryptionService.decrypt(ciphertext, record);
+    await this.auditService?.record({ eventType: 'record_accessed', actorUserId: doctorUserId, subjectUserId: patientUserId, resourceType: 'medical_record', resourceId: record.id, metadata: { access: 'consented_doctor' } });
+    return { record: this.publicRecord(record), body };
+  }
+
+  async setOwnRecordEmergencyEssential(patientUserId, recordId, isEmergencyEssential) {
+    const record = await this.medicalRecordRepository.setEmergencyEssential(recordId, patientUserId, isEmergencyEssential);
+    if (!record) throw new AppError(404, 'Medical record not found.', 'RECORD_NOT_FOUND');
+    await this.auditService?.record({ eventType: 'emergency_record_classification_changed', actorUserId: patientUserId, subjectUserId: patientUserId, resourceType: 'medical_record', resourceId: record.id, metadata: { isEmergencyEssential } });
+    return this.publicRecord(record);
   }
 
   async verifyOwnRecord(patientUserId, recordId) {

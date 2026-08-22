@@ -1,10 +1,11 @@
 import { AppError } from '../utils/app-error.js';
 
 export class ConsentService {
-  constructor({ consentRepository, userRepository, recordRegistryClient }) {
+  constructor({ consentRepository, userRepository, recordRegistryClient, auditService }) {
     this.consentRepository = consentRepository;
     this.userRepository = userRepository;
     this.recordRegistryClient = recordRegistryClient;
+    this.auditService = auditService;
   }
 
   async grant(patientUserId, doctorUserId, expiresAt) {
@@ -12,7 +13,9 @@ export class ConsentService {
     if (expiresAt <= new Date()) throw new AppError(400, 'Consent expiry must be in the future.', 'INVALID_EXPIRY');
     try {
       const transactionHash = await this.recordRegistryClient.grantAccess({ patientAddress: patient.blockchain_address, doctorAddress: doctor.blockchain_address, expiresAt });
-      return this.publicConsent(await this.consentRepository.grant({ patientUserId, doctorUserId, expiresAt, transactionHash }), doctor.email);
+      const consent = await this.consentRepository.grant({ patientUserId, doctorUserId, expiresAt, transactionHash });
+      await this.auditService?.record({ eventType: 'consent_granted', actorUserId: patientUserId, subjectUserId: patientUserId, resourceType: 'consent', resourceId: null, metadata: { doctorUserId }, expiresAt });
+      return this.publicConsent(consent, doctor.email);
     } catch {
       throw new AppError(502, 'Blockchain consent registration failed.', 'BLOCKCHAIN_CONSENT_FAILED');
     }
@@ -25,6 +28,7 @@ export class ConsentService {
     try {
       const transactionHash = await this.recordRegistryClient.revokeAccess({ patientAddress: patient.blockchain_address, doctorAddress: doctor.blockchain_address });
       const consent = await this.consentRepository.revoke({ patientUserId, doctorUserId, transactionHash });
+      await this.auditService?.record({ eventType: 'consent_revoked', actorUserId: patientUserId, subjectUserId: patientUserId, resourceType: 'consent', resourceId: null, metadata: { doctorUserId } });
       return this.publicConsent(consent, doctor.email);
     } catch {
       throw new AppError(502, 'Blockchain consent revocation failed.', 'BLOCKCHAIN_CONSENT_FAILED');

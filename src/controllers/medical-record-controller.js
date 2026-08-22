@@ -8,6 +8,7 @@ const uploadMetadata = z.object({
 const recordId = z.object({ recordId: z.string().uuid() });
 const patientRecordParams = z.object({ patientId: z.string().uuid(), recordId: z.string().uuid() });
 const patientIdParams = z.object({ patientId: z.string().uuid() });
+const emergencyEssential = z.object({ isEmergencyEssential: z.boolean() }).strict();
 
 export function createMedicalRecordController(medicalRecordService) {
   return {
@@ -43,6 +44,11 @@ export function createMedicalRecordController(medicalRecordService) {
       res.type(record.contentType);
       res.attachment(record.originalFilename);
       res.send(body);
+    }),
+    setOwnEmergencyEssential: asyncHandler(async (req, res) => {
+      const { recordId: id } = recordId.parse(req.params);
+      const { isEmergencyEssential } = emergencyEssential.parse(req.body);
+      res.json({ record: await medicalRecordService.setOwnRecordEmergencyEssential(req.user.sub, id, isEmergencyEssential) });
     })
   };
 }

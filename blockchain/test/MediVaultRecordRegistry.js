@@ -61,4 +61,13 @@ describe('MediVaultRecordRegistry', function () {
       'Unauthorized'
     );
   });
+
+  it('records a non-sensitive audit event for controlled emergency access', async function () {
+    const { registry, patient, unauthorized } = await deployRegistry();
+    const eventId = ethers.id('emergency-audit-event-1');
+    const eventType = ethers.id('emergency_access_granted');
+    const transaction = await registry.recordAuditEvent(eventId, eventType, patient.address, unauthorized.address, 0);
+    const receipt = await transaction.wait();
+    expect(receipt.status).to.equal(1);
+  });
 });

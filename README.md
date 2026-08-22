@@ -32,6 +32,12 @@ Phase 1–6 foundation for MediVault: Express, PostgreSQL, JWT authentication, b
 | DELETE | `/api/v1/consents/:doctorId` | Revoke a doctor's access |
 | GET | `/api/v1/doctor/patients/:patientId/records` | List records when active consent permits |
 | GET | `/api/v1/doctor/patients/:patientId/records/:recordId/download` | Download a permitted record |
+| POST | `/api/v1/doctor/prescriptions` | Create an encrypted, digitally signed prescription |
+| GET | `/api/v1/pharmacy/prescriptions/:prescriptionId/verify` | Verify prescription signature, content, and blockchain integrity |
+| PATCH | `/api/v1/patients/me/records/:recordId/emergency-essential` | Mark or unmark a patient record as emergency-essential |
+| POST | `/api/v1/emergency-access` | Doctor requests emergency access (reason and ≤1-hour expiry) |
+| GET | `/api/v1/emergency-access/patients/:patientId/records` | List essential records under active emergency access |
+| GET | `/api/v1/audit-events/me` | List the patient's audit trail |
 
 Registration payload: `{ "email": "user@example.com", "password": "at-least-12-characters", "role": "patient" }`.
 
@@ -52,5 +58,13 @@ Phase 9 uses `ethers.js` to register each newly uploaded record's SHA-256 hash w
 ## Consent and doctor access
 
 Phase 10 adds expiry-bound patient consent. A patient grants a doctor by submitting `{ "doctorId": "UUID", "expiresAt": "ISO-8601 timestamp" }` to `POST /api/v1/consents`; both accounts must have wallet addresses. The backend records the consent and mirrors the expiry or revocation to the contract. Doctors receive only the records of patients with an active local consent that also verifies on-chain; expired or revoked consent is denied.
+
+## Prescription verification
+
+Phase 11 accepts a doctor-only multipart `document` upload alongside `patientId`, optional `title`, and an Ethereum `signature`. The doctor signs the raw 32-byte SHA-256 digest using their registered wallet; the backend validates that signature, encrypts the document, and registers the digest on-chain. A pharmacy uses the verification endpoint and receives only validity results and non-sensitive issuance metadata—never the prescription file.
+
+## Emergency access and audit trail
+
+Phase 12 lets a patient mark selected records as emergency-essential. A doctor may request an emergency grant with a documented reason and expiry of at most one hour. Only those essential record metadata are returned while the grant remains active; each grant and access is recorded in the audit trail and anchored on-chain when both wallets are configured. The audit trail also records consent changes and prescription creation/verification.
 
 Run automated API tests with `npm test`.

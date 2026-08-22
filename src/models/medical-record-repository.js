@@ -34,6 +34,23 @@ export class MedicalRecordRepository {
     return result.rows;
   }
 
+  async listEssentialForPatient(patientUserId) {
+    const result = await this.database.query(
+      `SELECT id, original_filename, content_type, size_bytes, title, category, blockchain_status, created_at
+       FROM medical_records WHERE patient_user_id = $1 AND is_emergency_essential = TRUE ORDER BY created_at DESC`,
+      [patientUserId]
+    );
+    return result.rows;
+  }
+
+  async setEmergencyEssential(recordId, patientUserId, isEmergencyEssential) {
+    const result = await this.database.query(
+      `UPDATE medical_records SET is_emergency_essential = $3 WHERE id = $1 AND patient_user_id = $2 RETURNING *`,
+      [recordId, patientUserId, isEmergencyEssential]
+    );
+    return result.rows[0] ?? null;
+  }
+
   async markBlockchainRegistered(recordId, registration) {
     const result = await this.database.query(
       `UPDATE medical_records SET blockchain_status = 'registered', blockchain_record_id = $2,

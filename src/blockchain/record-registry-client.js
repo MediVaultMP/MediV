@@ -5,7 +5,8 @@ const REGISTRY_ABI = [
   'function verifyRecord(bytes32 recordId, bytes32 contentHash) view returns (bool)',
   'function grantAccess(address patient, address doctor, uint256 expiresAt)',
   'function revokeAccess(address patient, address doctor)',
-  'function hasAccess(address patient, address doctor) view returns (bool)'
+  'function hasAccess(address patient, address doctor) view returns (bool)',
+  'function recordAuditEvent(bytes32 eventId, bytes32 eventType, address subject, address actor, uint256 expiresAt)'
 ];
 
 export class RecordRegistryClient {
@@ -41,5 +42,16 @@ export class RecordRegistryClient {
 
   async hasAccess({ patientAddress, doctorAddress }) {
     return this.contract.hasAccess(patientAddress, doctorAddress);
+  }
+
+  async recordAuditEvent({ eventId, eventType, subjectAddress, actorAddress, expiresAt = null }) {
+    const transaction = await this.contract.recordAuditEvent(
+      keccak256(toUtf8Bytes(`medivault-audit:${eventId}`)),
+      keccak256(toUtf8Bytes(eventType)),
+      subjectAddress,
+      actorAddress,
+      expiresAt ? Math.floor(expiresAt.getTime() / 1000) : 0
+    );
+    return (await transaction.wait(1)).hash;
   }
 }

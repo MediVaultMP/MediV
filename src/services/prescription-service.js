@@ -4,13 +4,14 @@ import { getAddress, getBytes, verifyMessage } from 'ethers';
 import { AppError } from '../utils/app-error.js';
 
 export class PrescriptionService {
-  constructor({ prescriptionRepository, medicalStorage, fileEncryptionService, userRepository, consentService, recordRegistryClient }) {
+  constructor({ prescriptionRepository, medicalStorage, fileEncryptionService, userRepository, consentService, recordRegistryClient, auditService }) {
     this.prescriptionRepository = prescriptionRepository;
     this.medicalStorage = medicalStorage;
     this.fileEncryptionService = fileEncryptionService;
     this.userRepository = userRepository;
     this.consentService = consentService;
     this.recordRegistryClient = recordRegistryClient;
+    this.auditService = auditService;
   }
 
   async create(doctorUserId, patientUserId, file, { title, signature }) {
@@ -24,15 +25,18 @@ export class PrescriptionService {
     const storageKey = this.createStorageKey(patientUserId, file.originalname);
     const encryption = this.fileEncryptionService.encrypt(file.buffer);
     await this.medicalStorage.put({ key: storageKey, body: encryption.ciphertext, contentType: 'application/octet-stream' });
+    let persisted = false;
     try {
       let prescription = await this.prescriptionRepository.create({
         patientUserId, doctorUserId, storageKey, originalFilename: file.originalname, contentType: file.mimetype,
         sizeBytes: file.size, title, contentSha256, doctorSignature: signature, encryption
       });
+      persisted = true;
       prescription = await this.registerOnChain(prescription);
+      await this.auditService?.record({ eventType: 'prescription_created', actorUserId: doctorUserId, subjectUserId: patientUserId, resourceType: 'prescription', resourceId: prescription.id, metadata: {} });
       return this.publicPrescription(prescription);
     } catch (error) {
-      await this.medicalStorage.delete(storageKey).catch(() => {});
+      if (!persisted) await this.medicalStorage.delete(storageKey).catch(() => {});
       throw error;
     }
   }
@@ -51,7 +55,7 @@ export class PrescriptionService {
     if (prescription.blockchain_status === 'registered') {
       try { blockchainValid = await this.recordRegistryClient.verifyRecord({ recordId: prescription.id, contentSha256: prescription.content_sha256 }); } catch { blockchainValid = false; }
     }
-    return {
+    const verification = {
       prescriptionId: prescription.id,
       doctorUserId: prescription.doctor_user_id,
       issuedAt: prescription.created_at,
@@ -60,6 +64,8 @@ export class PrescriptionService {
       contentHashValid,
       blockchainValid
     };
+    await this.auditService?.record({ eventType: 'prescription_verified', actorUserId: null, subjectUserId: prescription.patient_user_id, resourceType: 'prescription', resourceId: prescription.id, metadata: { valid: verification.valid } });
+    return verification;
   }
 
   async registerOnChain(prescription) {

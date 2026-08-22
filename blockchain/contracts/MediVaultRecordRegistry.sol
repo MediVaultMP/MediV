@@ -33,6 +33,14 @@ contract MediVaultRecordRegistry {
     );
     event AccessGranted(address indexed patient, address indexed doctor, uint256 expiresAt, address indexed grantedBy, uint256 timestamp);
     event AccessRevoked(address indexed patient, address indexed doctor, address indexed revokedBy, uint256 timestamp);
+    event AuditEvent(
+        bytes32 indexed eventId,
+        bytes32 indexed eventType,
+        address indexed subject,
+        address actor,
+        uint256 expiresAt,
+        uint256 timestamp
+    );
 
     constructor() {
         owner = msg.sender;
@@ -100,5 +108,11 @@ contract MediVaultRecordRegistry {
 
     function accessExpiry(address patient, address doctor) external view returns (uint256) {
         return accessExpiries[patient][doctor];
+    }
+
+    /// @notice Anchors a non-sensitive audit event. Event details remain in PostgreSQL.
+    function recordAuditEvent(bytes32 eventId, bytes32 eventType, address subject, address actor, uint256 expiresAt) external onlyOwner {
+        if (eventId == bytes32(0) || eventType == bytes32(0) || subject == address(0) || actor == address(0)) revert ZeroValue();
+        emit AuditEvent(eventId, eventType, subject, actor, expiresAt, block.timestamp);
     }
 }
