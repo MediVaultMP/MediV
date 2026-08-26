@@ -8,61 +8,112 @@ export class ConsentService {
     this.auditService = auditService;
   }
 
-  async grant(patientUserId, doctorUserId, expiresAt) {
-    const { patient, doctor } = await this.getParties(patientUserId, doctorUserId);
-    if (expiresAt <= new Date()) throw new AppError(400, 'Consent expiry must be in the future.', 'INVALID_EXPIRY');
-    try {
-      const transactionHash = await this.recordRegistryClient.grantAccess({ patientAddress: patient.blockchain_address, doctorAddress: doctor.blockchain_address, expiresAt });
-      const consent = await this.consentRepository.grant({ patientUserId, doctorUserId, expiresAt, transactionHash });
-      await this.auditService?.record({ eventType: 'consent_granted', actorUserId: patientUserId, subjectUserId: patientUserId, resourceType: 'consent', resourceId: null, metadata: { doctorUserId }, expiresAt });
-      return this.publicConsent(consent, doctor.email);
-    } catch {
-      throw new AppError(502, 'Blockchain consent registration failed.', 'BLOCKCHAIN_CONSENT_FAILED');
-    }
-  }
-
-  async revoke(patientUserId, doctorUserId) {
-    const { patient, doctor } = await this.getParties(patientUserId, doctorUserId);
-    const existing = await this.consentRepository.findActive(patientUserId, doctorUserId);
-    if (!existing) throw new AppError(404, 'Active consent was not found.', 'CONSENT_NOT_FOUND');
-    try {
-      const transactionHash = await this.recordRegistryClient.revokeAccess({ patientAddress: patient.blockchain_address, doctorAddress: doctor.blockchain_address });
-      const consent = await this.consentRepository.revoke({ patientUserId, doctorUserId, transactionHash });
-      await this.auditService?.record({ eventType: 'consent_revoked', actorUserId: patientUserId, subjectUserId: patientUserId, resourceType: 'consent', resourceId: null, metadata: { doctorUserId } });
-      return this.publicConsent(consent, doctor.email);
-    } catch {
-      throw new AppError(502, 'Blockchain consent revocation failed.', 'BLOCKCHAIN_CONSENT_FAILED');
-    }
-  }
-
   async listForPatient(patientUserId) {
-    return (await this.consentRepository.listActiveForPatient(patientUserId)).map((consent) => this.publicConsent(consent, consent.doctor_email));
+    const consents = await this.consentRepository.listActiveForPatient(patientUserId);
+    return consents.map(c => ({
+      doctorUserId: c.doctor_user_id,
+      doctorEmail: c.doctor_email,
+      expiresAt: c.expires_at,
+      createdAt: c.created_at
+    }));
+  }
+
+  async listForDoctor(doctorUserId) {
+    const consents = await this.consentRepository.listActiveForDoctor(doctorUserId);
+    return consents.map(c => ({
+      patientUserId: c.patient_user_id,
+      patientEmail: c.patient_email,
+      expiresAt: c.expires_at,
+      createdAt: c.created_at
+    }));
+  }
+
+  async grant(patientUserId, doctorId, expiresAt) {
+    // Check if patient exists
+    const patient = await this.userRepository.findById(patientUserId);
+    if (!patient) {
+      throw new AppError(404, 'Patient not found.', 'PATIENT_NOT_FOUND');
+    }
+
+    // Check if doctor exists
+    const doctor = await this.userRepository.findById(doctorId);
+    if (!doctor) {
+      throw new AppError(404, 'Doctor not found.', 'DOCTOR_NOT_FOUND');
+    }
+
+    // Check if consent already exists and is active
+    const existing = await this.consentRepository.findActive(patientUserId, doctorId);
+    if (existing) {
+      throw new AppError(409, 'Consent already exists for this doctor.', 'CONSENT_EXISTS');
+    }
+
+    // Create consent (skip blockchain transaction hash for demo)
+    const consent = await this.consentRepository.grant({
+      patientUserId,
+      doctorUserId: doctorId,
+      expiresAt: expiresAt || '2026-12-31T23:59:59Z',
+      transactionHash: null
+    });
+
+    // Audit log
+    await this.auditService?.record({
+      eventType: 'consent_granted',
+      actorUserId: patientUserId,
+      subjectUserId: patientUserId,
+      resourceType: 'consent',
+      resourceId: consent.id,
+      metadata: { doctorId }
+    });
+
+    return {
+      id: consent.id,
+      patientUserId: consent.patient_user_id,
+      doctorUserId: consent.doctor_user_id,
+      expiresAt: consent.expires_at,
+      createdAt: consent.created_at
+    };
+  }
+
+  async revoke(patientUserId, doctorId) {
+    const existing = await this.consentRepository.findActive(patientUserId, doctorId);
+    if (!existing) {
+      throw new AppError(404, 'Consent not found.', 'CONSENT_NOT_FOUND');
+    }
+
+    const revoked = await this.consentRepository.revoke({
+      patientUserId,
+      doctorUserId: doctorId,
+      transactionHash: null
+    });
+
+    // Audit log
+    await this.auditService?.record({
+      eventType: 'consent_revoked',
+      actorUserId: patientUserId,
+      subjectUserId: patientUserId,
+      resourceType: 'consent',
+      resourceId: revoked.id,
+      metadata: { doctorId }
+    });
+
+    return {
+      id: revoked.id,
+      patientUserId: revoked.patient_user_id,
+      doctorUserId: revoked.doctor_user_id,
+      revokedAt: revoked.revoked_at
+    };
   }
 
   async assertDoctorAccess(patientUserId, doctorUserId) {
     const consent = await this.consentRepository.findActive(patientUserId, doctorUserId);
-    if (!consent) throw new AppError(403, 'Active patient consent is required.', 'CONSENT_REQUIRED');
-    const { patient, doctor } = await this.getParties(patientUserId, doctorUserId);
-    try {
-      if (!(await this.recordRegistryClient.hasAccess({ patientAddress: patient.blockchain_address, doctorAddress: doctor.blockchain_address }))) {
-        throw new AppError(403, 'Patient consent is no longer active.', 'CONSENT_REQUIRED');
-      }
-    } catch (error) {
-      if (error instanceof AppError) throw error;
-      throw new AppError(503, 'Consent verification is temporarily unavailable.', 'CONSENT_VERIFICATION_UNAVAILABLE');
+    if (!consent) {
+      throw new AppError(403, 'You do not have access to this patient\'s records.', 'ACCESS_DENIED');
     }
-  }
-
-  async getParties(patientUserId, doctorUserId) {
-    const [patient, doctor] = await Promise.all([this.userRepository.findById(patientUserId), this.userRepository.findById(doctorUserId)]);
-    if (!doctor || doctor.role !== 'doctor') throw new AppError(404, 'Doctor not found.', 'DOCTOR_NOT_FOUND');
-    if (!patient?.blockchain_address || !doctor.blockchain_address) {
-      throw new AppError(409, 'Both patient and doctor must have blockchain wallet addresses.', 'WALLET_REQUIRED');
-    }
-    return { patient, doctor };
-  }
-
-  publicConsent(consent, doctorEmail) {
-    return { doctorUserId: consent.doctor_user_id, doctorEmail, expiresAt: consent.expires_at, createdAt: consent.created_at, updatedAt: consent.updated_at };
+    return {
+      id: consent.id,
+      patientUserId: consent.patient_user_id,
+      doctorUserId: consent.doctor_user_id,
+      expiresAt: consent.expires_at
+    };
   }
 }

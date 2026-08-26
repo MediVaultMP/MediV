@@ -14,6 +14,16 @@ export class ConsentRepository {
     );
     return result.rows[0];
   }
+  async listActiveForDoctor(doctorUserId) {
+    const result = await this.database.query(
+      `SELECT consent.patient_user_id, consent.expires_at, consent.created_at, consent.updated_at, users.email AS patient_email
+      FROM patient_doctor_consents consent JOIN users ON users.id = consent.patient_user_id
+      WHERE consent.doctor_user_id = $1 AND consent.revoked_at IS NULL AND consent.expires_at > NOW()
+      ORDER BY consent.expires_at ASC`,
+      [doctorUserId]
+    );
+    return result.rows;
+  }
 
   async revoke({ patientUserId, doctorUserId, transactionHash }) {
     const result = await this.database.query(

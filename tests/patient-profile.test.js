@@ -1,4 +1,5 @@
 import request from 'supertest';
+import jwt from 'jsonwebtoken';
 import { describe, expect, it } from 'vitest';
 import { createApp } from '../src/app.js';
 import { AuthService } from '../src/services/auth-service.js';
@@ -7,10 +8,10 @@ import { PatientProfileService } from '../src/services/patient-profile-service.j
 class MemoryUsers {
   constructor() { this.users = []; }
   async findByEmail(email) { return this.users.find((user) => user.email === email) ?? null; }
-  async create({ email, passwordHash, role }) {
-    const user = { id: String(this.users.length + 1), email, password_hash: passwordHash, role, created_at: new Date().toISOString() };
+  async create({ email, passwordHash, role, status = 'active' }) {
+    const user = { id: String(this.users.length + 1), email, password_hash: passwordHash, role, status, created_at: new Date().toISOString() };
     this.users.push(user);
-    return { id: user.id, email: user.email, role: user.role, created_at: user.created_at };
+    return { id: user.id, email: user.email, role: user.role, status: user.status, created_at: user.created_at };
   }
 }
 
@@ -50,6 +51,10 @@ async function register(app, role, email) {
   return request(app).post('/api/v1/auth/register').send({ email, password: 'correct-horse-battery', role }).expect(201);
 }
 
+function tokenFor(role) {
+  return jwt.sign({ role, email: `${role}@example.com` }, 'test-secret-that-is-at-least-thirty-two-characters', { subject: `${role}-1`, expiresIn: '1h' });
+}
+
 describe('patient profile API', () => {
   it('allows a patient to create, read, and update only their own profile', async () => {
     const app = api();
@@ -67,8 +72,7 @@ describe('patient profile API', () => {
 
   it('rejects profile access by a non-patient and invalid profile data', async () => {
     const app = api();
-    const doctor = await register(app, 'doctor', 'doctor@example.com');
-    await request(app).get('/api/v1/patients/me/profile').set('Authorization', `Bearer ${doctor.body.token}`).expect(403);
+    await request(app).get('/api/v1/patients/me/profile').set('Authorization', `Bearer ${tokenFor('doctor')}`).expect(403);
     const patient = await register(app, 'patient', 'patient@example.com');
     await request(app).post('/api/v1/patients/me/profile').set('Authorization', `Bearer ${patient.body.token}`).send({ firstName: 'Asha', lastName: 'Patel', dateOfBirth: '2026-02-31' }).expect(400);
   });

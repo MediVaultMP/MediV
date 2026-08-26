@@ -19,6 +19,8 @@ import { ConsentService } from './services/consent-service.js';
 import { PrescriptionService } from './services/prescription-service.js';
 import { AuditService } from './services/audit-service.js';
 import { EmergencyAccessService } from './services/emergency-access-service.js';
+import { AdminService } from './services/admin-service.js';
+import { MockRecordRegistryClient } from './blockchain/mock-record-registry-client.js';
 
 const config = loadEnv();
 const database = createDatabase(config);
@@ -33,12 +35,23 @@ const authService = new AuthService({
 const patientProfileService = new PatientProfileService({
   patientProfileRepository: new PatientProfileRepository(database)
 });
-const recordRegistryClient = new RecordRegistryClient({
-  rpcUrl: config.BLOCKCHAIN_RPC_URL,
-  chainId: config.BLOCKCHAIN_CHAIN_ID,
-  contractAddress: config.BLOCKCHAIN_CONTRACT_ADDRESS,
-  privateKey: config.BLOCKCHAIN_PRIVATE_KEY
-});
+
+
+const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
+const useMockChain = config.BLOCKCHAIN_CONTRACT_ADDRESS === ZERO_ADDRESS;
+
+const recordRegistryClient = useMockChain
+  ? new MockRecordRegistryClient()
+  : new RecordRegistryClient({
+      rpcUrl: config.BLOCKCHAIN_RPC_URL,
+      chainId: config.BLOCKCHAIN_CHAIN_ID,
+      contractAddress: config.BLOCKCHAIN_CONTRACT_ADDRESS,
+      privateKey: config.BLOCKCHAIN_PRIVATE_KEY
+    });
+
+if (useMockChain) {
+  console.log('⚠️  BLOCKCHAIN_CONTRACT_ADDRESS is the zero address — running with MockRecordRegistryClient. No real chain calls are made.');
+}
 const auditService = new AuditService({ auditRepository, userRepository, recordRegistryClient });
 const consentService = new ConsentService({
   consentRepository: new ConsentRepository(database),
@@ -71,7 +84,8 @@ const emergencyAccessService = new EmergencyAccessService({
   medicalRecordRepository,
   auditService
 });
-const app = createApp({ authService, patientProfileService, medicalRecordService, walletService, consentService, prescriptionService, emergencyAccessService, auditRepository });
+const adminService = new AdminService({ userRepository, auditRepository, auditService });
+const app = createApp({ authService, patientProfileService, medicalRecordService, walletService, consentService, prescriptionService, emergencyAccessService, auditRepository, adminService });
 const server = app.listen(config.PORT, () => console.log(`MediVault API listening on port ${config.PORT}`));
 
 async function shutdown() {

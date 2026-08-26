@@ -12,3 +12,10 @@ export function createConsentRouter(authService, consentService) {
   router.delete('/:doctorId', controller.revoke);
   return router;
 }
+export function createDoctorConsentRouter(authService, consentService) {
+  const router = Router();
+  const controller = createConsentController(consentService);
+  router.use(authenticate(authService), authorize('doctor'));
+  router.get('/patients', controller.listForDoctor);
+  return router;
+}

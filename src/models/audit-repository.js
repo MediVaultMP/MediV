@@ -18,4 +18,13 @@ export class AuditRepository {
     );
     return result.rows;
   }
+
+  async listAll({ limit = 200 } = {}) {
+    const result = await this.database.query(
+      `SELECT id, event_type, actor_user_id, subject_user_id, resource_type, resource_id, metadata, blockchain_tx_hash, created_at
+       FROM audit_events ORDER BY created_at DESC LIMIT $1`,
+      [limit]
+    );
+    return result.rows;
+  }
 }

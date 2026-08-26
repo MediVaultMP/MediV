@@ -28,6 +28,7 @@ export function createDoctorMedicalRecordRouter(authService, medicalRecordServic
   const router = Router();
   const controller = createMedicalRecordController(medicalRecordService);
   router.use(authenticate(authService), authorize('doctor'));
+  router.post('/patients/:patientId/records', upload.single('document'), controller.uploadForDoctor);
   router.get('/patients/:patientId/records', controller.listForDoctor);
   router.get('/patients/:patientId/records/:recordId/download', controller.downloadForDoctor);
   return router;

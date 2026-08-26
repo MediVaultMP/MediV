@@ -14,6 +14,15 @@ export class MedicalRecordService {
   }
 
   async uploadOwnRecord(patientUserId, file, metadata) {
+    return this.uploadRecord({ patientUserId, uploadedByUserId: patientUserId, file, metadata });
+  }
+
+  async uploadRecordForDoctor(doctorUserId, patientUserId, file, metadata) {
+    await this.consentService.assertDoctorAccess(patientUserId, doctorUserId);
+    return this.uploadRecord({ patientUserId, uploadedByUserId: doctorUserId, file, metadata });
+  }
+
+  async uploadRecord({ patientUserId, uploadedByUserId, file, metadata }) {
     if (!file) throw new AppError(400, 'A medical document is required.', 'FILE_REQUIRED');
     const storageKey = this.createStorageKey(patientUserId, file.originalname);
     const contentSha256 = this.createSha256(file.buffer);
@@ -22,7 +31,7 @@ export class MedicalRecordService {
     try {
       let record = await this.medicalRecordRepository.create({
         patientUserId,
-        uploadedByUserId: patientUserId,
+        uploadedByUserId,
         storageKey,
         originalFilename: file.originalname,
         contentType: file.mimetype,
@@ -33,7 +42,7 @@ export class MedicalRecordService {
         encryption
       });
       if (this.recordRegistryClient) record = await this.registerRecordOnChain(patientUserId, record);
-      await this.auditService?.record({ eventType: 'record_created', actorUserId: patientUserId, subjectUserId: patientUserId, resourceType: 'medical_record', resourceId: record.id, metadata: {} });
+      await this.auditService?.record({ eventType: 'record_created', actorUserId: uploadedByUserId, subjectUserId: patientUserId, resourceType: 'medical_record', resourceId: record.id, metadata: {} });
       return this.publicRecord(record);
     } catch (error) {
       await this.medicalStorage.delete(storageKey).catch(() => {});

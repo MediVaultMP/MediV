@@ -1,0 +1,5 @@
+﻿Patient: John Doe
+Date: 2026-08-25
+Test: Complete Blood Count
+Result: Normal
+Doctor: Dr. Smith

@@ -16,6 +16,11 @@ export function createMedicalRecordController(medicalRecordService) {
       const record = await medicalRecordService.uploadOwnRecord(req.user.sub, req.file, uploadMetadata.parse(req.body));
       res.status(201).json({ record });
     }),
+    uploadForDoctor: asyncHandler(async (req, res) => {
+      const { patientId } = patientIdParams.parse(req.params);
+      const record = await medicalRecordService.uploadRecordForDoctor(req.user.sub, patientId, req.file, uploadMetadata.parse(req.body));
+      res.status(201).json({ record });
+    }),
     listOwn: asyncHandler(async (req, res) => {
       res.json({ records: await medicalRecordService.listOwnRecords(req.user.sub) });
     }),
