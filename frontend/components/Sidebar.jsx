@@ -1,4 +1,6 @@
+
 "use client";
+
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -11,7 +13,6 @@ const ICONS = {
   users: "M8 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm8 0a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM2 20c0-3 2.7-5 6-5s6 2 6 5M14 15c3.3 0 6 2 6 5",
   audit: "M4 6h16M4 12h16M4 18h9",
   chain: "M9 7h3a3 3 0 0 1 0 6H9m6 4h-3a3 3 0 0 1 0-6h3M7 10h10",
-  requests: "M9 12l2 2 4-4M12 3l8 4v5c0 5-3.4 8.5-8 10-4.6-1.5-8-5-8-10V7l8-4Z",
   patients: "M8 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm8 0a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM2 20c0-3 2.7-5 6-5s6 2 6 5M14 15c3.3 0 6 2 6 5",
   upload: "M12 16V4M7 9l5-5 5 5M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3",
   writeRx: "M9 3h6v4H9V3Zm-3 4h12v14H6V7Zm3 5h6M9 15h6",
@@ -21,7 +22,16 @@ const ICONS = {
 
 function Icon({ d }) {
   return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       <path d={d} />
     </svg>
   );
@@ -36,6 +46,7 @@ const PORTAL_LABEL = {
 
 export default function Sidebar({ role, userLabel }) {
   const pathname = usePathname();
+
   const LINKS_BY_ROLE = {
     admin: [
       { href: "/admin/dashboard", label: "Overview", icon: ICONS.overview },
@@ -44,19 +55,21 @@ export default function Sidebar({ role, userLabel }) {
       { href: "/admin/audit-log", label: "Audit log", icon: ICONS.audit },
       { href: "/admin/chain-log", label: "Chain log", icon: ICONS.chain },
     ],
+
     patient: [
       { href: "/patient/dashboard", label: "Overview", icon: ICONS.overview },
       { href: "/patient/records", label: "Records", icon: ICONS.records },
       { href: "/patient/consents", label: "Consent wallet", icon: ICONS.consents },
       { href: "/patient/prescriptions", label: "Prescriptions", icon: ICONS.prescriptions },
     ],
+
     doctor: [
       { href: "/doctor/dashboard", label: "Overview", icon: ICONS.overview },
-      { href: "/doctor/access-requests", label: "Access requests", icon: ICONS.requests },
       { href: "/doctor/patients", label: "My patients", icon: ICONS.patients },
       { href: "/doctor/records/new", label: "Upload record", icon: ICONS.upload },
       { href: "/doctor/prescriptions/new", label: "Write prescription", icon: ICONS.writeRx },
     ],
+
     pharmacy: [
       { href: "/pharmacy/verify", label: "Verify prescription", icon: ICONS.verify },
       { href: "/pharmacy/history", label: "Verification history", icon: ICONS.history },
@@ -65,26 +78,42 @@ export default function Sidebar({ role, userLabel }) {
 
   const links = LINKS_BY_ROLE[role] || LINKS_BY_ROLE.patient;
 
-  // de-dupe repeated hrefs (e.g. admin's two "Overview" entries share one page)
+  // De-duplicate repeated hrefs (e.g. admin's two dashboard entries).
   const seen = new Set();
-  const finalLinks = links.filter((l) => (seen.has(l.href) ? false : seen.add(l.href)));
+  const finalLinks = links.filter((l) =>
+    seen.has(l.href) ? false : seen.add(l.href)
+  );
 
   return (
     <aside className="sidebar">
       <div className="sidebar-brand">
         <div className="brand-mark">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="#fff"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
             <path d="M12 3l7 3v6c0 4.5-3 8-7 9-4-1-7-4.5-7-9V6l7-3Z" />
             <path d="M9 12l2 2 4-4" />
           </svg>
         </div>
+
         <div className="brand-name">
           MediVault <small>{PORTAL_LABEL[role] || "Patient"} Portal</small>
         </div>
       </div>
 
       {finalLinks.map((l) => (
-        <Link key={l.label} href={l.href} className={`nav-link ${pathname === l.href ? "active" : ""}`}>
+        <Link
+          key={l.label}
+          href={l.href}
+          className={`nav-link ${pathname === l.href ? "active" : ""}`}
+        >
           <Icon d={l.icon} />
           {l.label}
         </Link>
@@ -92,8 +121,25 @@ export default function Sidebar({ role, userLabel }) {
 
       <div className="sidebar-foot">
         Signed in as
-        <div style={{ color: "var(--ink)", fontWeight: 600, marginTop: 2 }}>{userLabel}</div>
-        <Link href="/login" style={{ color: "var(--primary)", fontWeight: 600, display: "inline-block", marginTop: 8 }}>
+        <div
+          style={{
+            color: "var(--ink)",
+            fontWeight: 600,
+            marginTop: 2,
+          }}
+        >
+          {userLabel}
+        </div>
+
+        <Link
+          href="/login"
+          style={{
+            color: "var(--primary)",
+            fontWeight: 600,
+            display: "inline-block",
+            marginTop: 8,
+          }}
+        >
           Sign out
         </Link>
       </div>

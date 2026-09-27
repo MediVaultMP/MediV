@@ -1,3 +1,4 @@
+
 // lib/api.js
 import { fixtures } from "./fixtures";
 
@@ -27,7 +28,15 @@ function normalizeAuditEvent(event) {
     ...event,
     actor: event.actor || event.actor_user_id || event.actorUserId || "system",
     action: event.action || event.event_type || event.eventType,
-    target: event.target || [event.resource_type || event.resourceType, event.resource_id || event.resourceId].filter(Boolean).join(" ") || "platform",
+    target:
+      event.target ||
+      [
+        event.resource_type || event.resourceType,
+        event.resource_id || event.resourceId,
+      ]
+        .filter(Boolean)
+        .join(" ") ||
+      "platform",
     at: event.at || event.created_at || event.createdAt,
   };
 }
@@ -58,30 +67,43 @@ function normalizeDoctorPatient(patient) {
 }
 
 async function request(path, { method = "GET", body } = {}) {
-  const isFormData = typeof FormData !== "undefined" && body instanceof FormData;
+  const isFormData =
+    typeof FormData !== "undefined" && body instanceof FormData;
+
   const res = await fetch(`${BASE_URL}${path}`, {
     method,
-    headers: isFormData ? authHeaders() : { "Content-Type": "application/json", ...authHeaders() },
+    headers: isFormData
+      ? authHeaders()
+      : { "Content-Type": "application/json", ...authHeaders() },
     body: isFormData ? body : body ? JSON.stringify(body) : undefined,
   });
+
   const data = await res.json().catch(() => ({}));
+
   if (!res.ok) {
-    const err = new Error(data?.error?.message || `Request failed: ${res.status}`);
+    const err = new Error(
+      data?.error?.message || `Request failed: ${res.status}`
+    );
     err.status = res.status;
     err.code = data?.error?.code;
     err.details = data?.error?.details;
     throw err;
   }
+
   return data;
 }
 
 async function downloadFile(path, filename) {
-  const res = await fetch(`${BASE_URL}${path}`, { headers: authHeaders() });
+  const res = await fetch(`${BASE_URL}${path}`, {
+    headers: authHeaders(),
+  });
+
   if (!res.ok) {
     const err = new Error(`Download failed: ${res.status}`);
     err.status = res.status;
     throw err;
   }
+
   const blob = await res.blob();
   const url = window.URL.createObjectURL(blob);
   const a = document.createElement("a");
@@ -95,129 +117,239 @@ async function downloadFile(path, filename) {
 
 export const api = {
   // ---------- auth ----------
-  // Backend schema is EXACTLY { email, password, role: 'patient'|'doctor'|'pharmacy' }.
-  // No name, no license_id, no admin role — don't send fields it will reject/ignore.
+  // Backend schema: { email, password, role: 'patient'|'doctor'|'pharmacy' }.
+  // No name, no license_id, no admin role.
   register: ({ email, password, role }) =>
-    request("/auth/register", { method: "POST", body: { email, password, role } })
-      .then((r) => ({ user: r.user, token: r.token })),
+    request("/auth/register", {
+      method: "POST",
+      body: { email, password, role },
+    }).then((r) => ({ user: r.user, token: r.token })),
 
-  // Backend ignores any "role" you send on login — it returns the user's real role.
-  // Always route the UI based on res.user.role, never the value picked in a dropdown.
+  // The backend returns the user's actual role on login.
   login: ({ email, password }) =>
-    request("/auth/login", { method: "POST", body: { email, password } }),
+    request("/auth/login", {
+      method: "POST",
+      body: { email, password },
+    }),
 
   getMe: () => request("/health/me").then((r) => r.user),
 
   // ---------- patient profile ----------
-  getPatientProfile: () => request("/patients/me/profile").then((r) => r.profile ?? r),
+  getPatientProfile: () =>
+    request("/patients/me/profile").then((r) => r.profile ?? r),
+
   createPatientProfile: (profile) =>
-    request("/patients/me/profile", { method: "POST", body: profile }),
+    request("/patients/me/profile", {
+      method: "POST",
+      body: profile,
+    }),
+
   updatePatientProfile: (profile) =>
-    request("/patients/me/profile", { method: "PATCH", body: profile }),
+    request("/patients/me/profile", {
+      method: "PATCH",
+      body: profile,
+    }),
 
   // ---------- wallet ----------
   setPatientWallet: (blockchainAddress) =>
-    request("/patients/me/wallet", { method: "PUT", body: { blockchainAddress } }),
+    request("/patients/me/wallet", {
+      method: "PUT",
+      body: { blockchainAddress },
+    }),
+
   setAccountWallet: (blockchainAddress) =>
-    request("/account/wallet", { method: "PUT", body: { blockchainAddress } }),
+    request("/account/wallet", {
+      method: "PUT",
+      body: { blockchainAddress },
+    }),
 
   // ---------- patient: medical records ----------
-  // Shape returned per record: { id, patientUserId, originalFilename, contentType,
-  // sizeBytes, title, category, blockchainStatus, createdAt }
-  getPatientRecords: () => request("/patients/me/records").then((r) => r.records),
+  // Returned record shape:
+  // { id, patientUserId, originalFilename, contentType, sizeBytes,
+  //   title, category, blockchainStatus, createdAt }
+  getPatientRecords: () =>
+    request("/patients/me/records").then((r) => r.records),
+
   uploadRecord: ({ file, title, category }) => {
     const form = new FormData();
     form.append("document", file);
     if (title) form.append("title", title);
-    if (category) form.append("category", category); // lab-result | imaging | prescription | clinical-note | other
-    return request("/patients/me/records", { method: "POST", body: form }).then((r) => r.record);
+    if (category) form.append("category", category);
+    return request("/patients/me/records", {
+      method: "POST",
+      body: form,
+    }).then((r) => r.record);
   },
+
   verifyRecord: (recordId) =>
-    request(`/patients/me/records/${recordId}/verify`, { method: "POST" }).then((r) => r.verification),
+    request(`/patients/me/records/${recordId}/verify`, {
+      method: "POST",
+    }).then((r) => r.verification),
+
   registerRecordOnChain: (recordId) =>
-    request(`/patients/me/records/${recordId}/register-on-chain`, { method: "POST" }).then((r) => r.record),
+    request(`/patients/me/records/${recordId}/register-on-chain`, {
+      method: "POST",
+    }).then((r) => r.record),
+
   setRecordEmergencyEssential: (recordId, isEmergencyEssential) =>
     request(`/patients/me/records/${recordId}/emergency-essential`, {
       method: "PATCH",
       body: { isEmergencyEssential },
     }).then((r) => r.record),
+
   downloadOwnRecord: (recordId, filename) =>
     downloadFile(`/patients/me/records/${recordId}/download`, filename),
 
   // ---------- doctor: patients + records ----------
-  // Shape per patient: { patientUserId, patientEmail, expiresAt, createdAt, updatedAt }
-  // There is NO name, health_id, records_count, scope, or last_visit on this backend.
-  getDoctorPatients: () => request("/doctor/patients").then((r) => r.patients.map(normalizeDoctorPatient)),
+  // Backend patient shape:
+  // { patientUserId, patientEmail, expiresAt, createdAt, updatedAt }
+  // Normalization supplies frontend display fields.
+  getDoctorPatients: () =>
+    request("/doctor/patients").then((r) =>
+      r.patients.map(normalizeDoctorPatient)
+    ),
+
   getPatientRecordsForDoctor: (patientId) =>
     request(`/doctor/patients/${patientId}/records`).then((r) => r.records),
+
   downloadRecordForDoctor: (patientId, recordId, filename) =>
-    downloadFile(`/doctor/patients/${patientId}/records/${recordId}/download`, filename),
-  createRecord: ({ patient_id, patientId, record_type, title, category, file }) => {
+    downloadFile(
+      `/doctor/patients/${patientId}/records/${recordId}/download`,
+      filename
+    ),
+
+  createRecord: ({
+    patient_id,
+    patientId,
+    record_type,
+    title,
+    category,
+    file,
+  }) => {
     const form = new FormData();
     form.append("document", file);
     if (title) form.append("title", title);
-    if (category || record_type) form.append("category", category || record_type);
-    return request(`/doctor/patients/${patientId || patient_id}/records`, { method: "POST", body: form }).then((r) => r.record);
+    if (category || record_type) {
+      form.append("category", category || record_type);
+    }
+
+    return request(
+      `/doctor/patients/${patientId || patient_id}/records`,
+      {
+        method: "POST",
+        body: form,
+      }
+    ).then((r) => r.record);
   },
 
-  // ---------- consents (patient grants directly — no request/approve flow) ----------
-  // Every item returned is already active: { doctorUserId, doctorEmail, expiresAt, createdAt, updatedAt }
-  getConsents: () => request("/consents").then((r) => r.consents.map(normalizeConsent)),
-  getPatientConsents: () => request("/consents").then((r) => r.consents.map(normalizeConsent)),
+  // ---------- consents ----------
+  // Patients grant consent directly; no request/approve flow.
+  // Returned consent items are already active.
+  getConsents: () =>
+    request("/consents").then((r) =>
+      r.consents.map(normalizeConsent)
+    ),
+
+  getPatientConsents: () =>
+    request("/consents").then((r) =>
+      r.consents.map(normalizeConsent)
+    ),
+
   grantConsent: (doctorId, expiresAt) =>
-    request("/consents", { method: "POST", body: { doctorId, expiresAt } }).then((r) => r.consent),
+    request("/consents", {
+      method: "POST",
+      body: { doctorId, expiresAt },
+    }).then((r) => r.consent),
+
   revokeConsent: (doctorId) =>
-    request(`/consents/${doctorId}`, { method: "DELETE" }).then((r) => r.consent),
+    request(`/consents/${doctorId}`, {
+      method: "DELETE",
+    }).then((r) => r.consent),
 
   // ---------- prescriptions ----------
-  // Prescriptions are signed FILE uploads verified by hash + doctor wallet signature —
-  // there is no medication/dosage/duration free text on this backend.
+  // Prescriptions are signed file uploads verified by hash
+  // and doctor wallet signature.
   createPrescription: ({ patientId, title, signature, file }) => {
     const form = new FormData();
     form.append("document", file);
     form.append("patientId", patientId);
-    form.append("signature", signature); // doctor wallet signature over sha256(file)
+    form.append("signature", signature);
     if (title) form.append("title", title);
-    return request("/doctor/prescriptions", { method: "POST", body: form }).then((r) => r.prescription);
+
+    return request("/doctor/prescriptions", {
+      method: "POST",
+      body: form,
+    }).then((r) => r.prescription);
   },
-  // Returns: { prescriptionId, doctorUserId, issuedAt, valid, signatureValid, contentHashValid, blockchainValid }
+
+  // Returns verification details including signature, content hash,
+  // and blockchain validity.
   verifyPrescription: (prescriptionId) =>
-    request(`/pharmacy/prescriptions/${prescriptionId}/verify`).then((r) => r.verification),
+    request(`/pharmacy/prescriptions/${prescriptionId}/verify`).then(
+      (r) => r.verification
+    ),
 
   // ---------- emergency access (doctor) ----------
   grantEmergencyAccess: ({ patientId, reason, expiresAt }) =>
-    request("/emergency-access", { method: "POST", body: { patientId, reason, expiresAt } }),
+    request("/emergency-access", {
+      method: "POST",
+      body: { patientId, reason, expiresAt },
+    }),
+
   getEmergencyEssentialRecords: (patientId) =>
-    request(`/emergency-access/patients/${patientId}/records`).then((r) => r.records),
+    request(`/emergency-access/patients/${patientId}/records`).then(
+      (r) => r.records
+    ),
 
   // ---------- audit (patient) ----------
-  getMyAuditLog: () => request("/audit-events/me").then((r) => r.events),
+  getMyAuditLog: () =>
+    request("/audit-events/me").then((r) => r.events),
 
-  // ================= NOT IMPLEMENTED ON THE BACKEND =================
-  // No admin role, no users/approval table, no doctor-initiated access-request
-  // flow, no aggregate audit/chain-log-for-everyone endpoints. Fixtures only —
-  // don't wire real network calls to these until the backend actually has them.
-  getPendingApprovals: () => request("/admin/users/pending").then((r) => r.users.map(normalizeUser)),
-  approveUser: (id) => request(`/admin/users/${id}/approve`, { method: "POST" }).then((r) => normalizeUser(r.user)),
-  rejectUser: (id) => request(`/admin/users/${id}/reject`, { method: "POST" }).then((r) => normalizeUser(r.user)),
-  getAllUsers: () => request("/admin/users").then((r) => r.users.map(normalizeUser)),
-  getAuditLog: () => request("/admin/audit-events").then((r) => r.events.map(normalizeAuditEvent)),
-  getChainLog: () => request("/admin/audit-events").then((r) =>
-    r.events
-      .filter((event) => event.blockchain_tx_hash || event.blockchainTxHash)
-      .map((event) => ({
-        tx_id: event.blockchain_tx_hash || event.blockchainTxHash,
-        action_type: event.event_type || event.eventType,
-        payload_hash: event.resource_id || event.resourceId || "recorded",
-        created_at: event.created_at || event.createdAt,
-      }))
-  ),
-  getDoctorAccessRequests: async () => [],
-  requestAccess: async () => {
-    const err = new Error("Patients grant consent directly from their consent wallet in this backend.");
-    err.status = 501;
-    throw err;
-  },
+  // ---------- admin ----------
+  // These endpoints are marked as not implemented in the backend.
+  // Do not wire real network calls to them until implemented.
+  getPendingApprovals: () =>
+    request("/admin/users/pending").then((r) =>
+      r.users.map(normalizeUser)
+    ),
+
+  approveUser: (id) =>
+    request(`/admin/users/${id}/approve`, {
+      method: "POST",
+    }).then((r) => normalizeUser(r.user)),
+
+  rejectUser: (id) =>
+    request(`/admin/users/${id}/reject`, {
+      method: "POST",
+    }).then((r) => normalizeUser(r.user)),
+
+  getAllUsers: () =>
+    request("/admin/users").then((r) =>
+      r.users.map(normalizeUser)
+    ),
+
+  getAuditLog: () =>
+    request("/admin/audit-events").then((r) =>
+      r.events.map(normalizeAuditEvent)
+    ),
+
+  getChainLog: () =>
+    request("/admin/audit-events").then((r) =>
+      r.events
+        .filter(
+          (event) =>
+            event.blockchain_tx_hash || event.blockchainTxHash
+        )
+        .map((event) => ({
+          tx_id: event.blockchain_tx_hash || event.blockchainTxHash,
+          action_type: event.event_type || event.eventType,
+          payload_hash:
+            event.resource_id || event.resourceId || "recorded",
+          created_at: event.created_at || event.createdAt,
+        }))
+    ),
+
+  // ---------- fixture-backed data ----------
   getPatientPrescriptions: async () => fixtures.prescriptions,
   getPharmacyHistory: async () => fixtures.pharmacyHistory,
 };
