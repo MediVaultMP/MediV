@@ -1,3 +1,4 @@
+
 "use client";
 import { useEffect, useState } from "react";
 import PortalShell from "../../../components/PortalShell";
@@ -5,27 +6,25 @@ import { StatCard, StatusBadge, EmptyState, fmtDateTime } from "../../../compone
 import { api } from "../../../lib/api";
 
 export default function DoctorDashboard() {
-  const [requests, setRequests] = useState(null);
   const [patients, setPatients] = useState(null);
   const [licenseId, setLicenseId] = useState(null);
 
   useEffect(() => {
-    api.getDoctorAccessRequests().then(setRequests);
     api.getDoctorPatients().then(setPatients);
-    // license_id is a real users column set at registration — read it from
-    // the session the same way PortalShell reads the doctor's name, rather
-    // than hardcoding a value that isn't actually this doctor's.
+
+    // Read the doctor's license ID from the session.
     try {
       const stored = JSON.parse(window.localStorage.getItem("sch_user") || "null");
       if (stored?.license_id) setLicenseId(stored.license_id);
     } catch {
-      // ignore malformed/missing localStorage value
+      // Ignore malformed or missing localStorage value.
     }
   }, []);
 
-  const pendingCount = requests ? requests.filter((r) => r.status === "pending").length : "—";
   const activeCount = patients ? patients.length : "-";
-  const recordsCount = patients ? patients.reduce((sum, p) => sum + (p.records_count || 0), 0) : "—";
+  const recordsCount = patients
+    ? patients.reduce((sum, p) => sum + (p.records_count || 0), 0)
+    : "—";
 
   return (
     <PortalShell
@@ -36,7 +35,6 @@ export default function DoctorDashboard() {
     >
       <div className="grid grid-4" style={{ marginBottom: 20 }}>
         <StatCard label="Active patients" value={activeCount} icon={<Dot color="var(--primary)" />} />
-        <StatCard label="Pending requests" value={pendingCount} icon={<Dot color="var(--amber)" />} />
         <StatCard label="Records you've added" value={recordsCount} icon={<Dot color="var(--mint)" />} />
         <StatCard label="License" value={<span className="mono" style={{ fontSize: 15 }}>{licenseId || "—"}</span>} icon={<Dot color="var(--muted)" />} />
       </div>
@@ -48,7 +46,10 @@ export default function DoctorDashboard() {
         </p>
 
         {patients && patients.length === 0 && (
-          <EmptyState title="No active patients yet" body="Request access to a patient to see them appear here once they grant it." />
+          <EmptyState
+            title="No active patients yet"
+            body="Patients who grant you access will appear here."
+          />
         )}
 
         {patients && patients.length > 0 && (
@@ -83,4 +84,3 @@ export default function DoctorDashboard() {
 function Dot({ color }) {
   return <div style={{ width: 10, height: 10, borderRadius: 999, background: color }} />;
 }
-
