@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import PortalShell from "../../../../components/PortalShell";
 import { VerifyChip } from "../../../../components/ui";
 import { api } from "../../../../lib/api";
+import { ACCEPT_ATTR, FILE_HINT, validateFile } from "../../../../lib/fileRules";
 
 const TYPES = [
   { id: "lab-result", label: "Lab report" },
@@ -29,6 +30,14 @@ export default function NewRecord() {
       else if (list.length > 0) setPatientId(list[0].patientUserId);
     });
   }, []);
+
+  function handleFile(e) {
+    const f = e.target.files?.[0] || null;
+    const msg = f ? validateFile(f) : null;
+    if (msg) { setError(msg); setFile(null); e.target.value = ""; return; }
+    setError("");
+    setFile(f);
+  }
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -88,7 +97,8 @@ export default function NewRecord() {
 
           <div className="field">
             <label>File</label>
-            <input type="file" onChange={(e) => setFile(e.target.files?.[0] || null)} />
+            <input type="file" accept={ACCEPT_ATTR} onChange={handleFile} />
+            <div className="field-hint">{FILE_HINT}</div>
             <div className="field-hint">Encrypted with AES-256-GCM on upload; the plaintext file never touches the chain.</div>
           </div>
 

@@ -22,6 +22,10 @@ export default function RegisterPage() {
   async function handleSubmit(e) {
     e.preventDefault();
     setError("");
+    if (form.password.length < 12) {
+      setError("Password must be at least 12 characters.");
+      return;
+    }
     if (form.password !== form.confirm) {
       setError("Passwords don't match.");
       return;
@@ -139,7 +143,8 @@ export default function RegisterPage() {
 
           <div className="field">
             <label>Password</label>
-            <input type="password" required value={form.password} onChange={(e) => set("password", e.target.value)} placeholder="••••••••" />
+            <input type="password" required minLength={12} maxLength={128} value={form.password} onChange={(e) => set("password", e.target.value)} placeholder="At least 12 characters" />
+            <div className="field-hint">Use at least 12 characters ({form.password.length}/12).</div>
           </div>
           <div className="field">
             <label>Confirm password</label>

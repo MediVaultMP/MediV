@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import PortalShell from "../../../../components/PortalShell";
 import { api } from "../../../../lib/api";
+import { ACCEPT_ATTR, FILE_HINT, validateFile } from "../../../../lib/fileRules";
 
 export default function NewPrescription() {
   const router = useRouter();
@@ -23,6 +24,14 @@ export default function NewPrescription() {
       else if (list.length > 0) setPatientId(list[0].patientUserId);
     });
   }, []);
+
+  function handleFile(e) {
+    const f = e.target.files?.[0] || null;
+    const msg = f ? validateFile(f) : null;
+    if (msg) { setError(msg); setFile(null); e.target.value = ""; return; }
+    setError("");
+    setFile(f);
+  }
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -67,7 +76,8 @@ export default function NewPrescription() {
 
           <div className="field">
             <label>Document</label>
-            <input type="file" onChange={(e) => setFile(e.target.files?.[0] || null)} />
+            <input type="file" accept={ACCEPT_ATTR} onChange={handleFile} />
+            <div className="field-hint">{FILE_HINT}</div>
           </div>
 
           <div className="field">
