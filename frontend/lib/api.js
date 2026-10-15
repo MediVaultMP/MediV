@@ -69,14 +69,23 @@ function normalizeDoctorPatient(patient) {
 async function request(path, { method = "GET", body } = {}) {
   const isFormData =
     typeof FormData !== "undefined" && body instanceof FormData;
-
-  const res = await fetch(`${BASE_URL}${path}`, {
-    method,
-    headers: isFormData
-      ? authHeaders()
-      : { "Content-Type": "application/json", ...authHeaders() },
-    body: isFormData ? body : body ? JSON.stringify(body) : undefined,
-  });
+  let res;
+  try {
+    res = await fetch(`${BASE_URL}${path}`, {
+      method,
+      headers: isFormData
+        ? authHeaders()
+        : { "Content-Type": "application/json", ...authHeaders() },
+      body: isFormData ? body : body ? JSON.stringify(body) : undefined,
+    });
+  } catch (error) {
+    const err = new Error(
+      "Unable to connect to the MediVault server. Please try again later."
+    );
+    err.code = "API_UNAVAILABLE";
+    err.cause = error;
+    throw err;
+  }
 
   const data = await res.json().catch(() => ({}));
 
@@ -126,7 +135,7 @@ export const api = {
     }).then((r) => ({ user: r.user, token: r.token })),
 
   // The backend returns the user's actual role on login.
-  login: ({ email, password }) =>
+   login: ({ email, password }) =>
     request("/auth/login", {
       method: "POST",
       body: { email, password },

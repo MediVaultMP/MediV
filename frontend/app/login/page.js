@@ -40,6 +40,8 @@ export default function LoginPage() {
         setError("Your account is waiting for admin approval.");
       } else if (err.code === "ACCOUNT_REJECTED") {
         setError("This account is not active.");
+      } else if (err.code === "API_UNAVAILABLE") {
+        setError("Unable to connect to the MediVault server. Please try again later.");
       } else {
         setError("Couldn't sign you in. Check your email and password and try again.");
       }

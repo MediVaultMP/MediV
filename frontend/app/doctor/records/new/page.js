@@ -16,7 +16,7 @@ export default function NewRecord() {
   const router = useRouter();
   const [patients, setPatients] = useState(null);
   const [patientId, setPatientId] = useState("");
-  const [recordType, setRecordType] = useState("lab_report");
+  const [recordType, setRecordType] = useState("lab-result");
   const [file, setFile] = useState(null);
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
