@@ -73,6 +73,20 @@ export class AuditRepository {
     return result.rows;
   }
 
+  async listForPharmacy(pharmacyUserId) {
+    const result = await this.database.query(
+      `SELECT id, resource_id AS prescription_id,
+              CASE WHEN metadata->>'valid' = 'true' THEN 'verified' ELSE 'failed' END AS result,
+              COALESCE(metadata->>'medication_summary', 'Prescription verification') AS medication_summary,
+              created_at AS at
+       FROM audit_events
+       WHERE actor_user_id = $1 AND event_type = 'prescription_verified'
+       ORDER BY created_at DESC LIMIT 200`,
+      [pharmacyUserId]
+    );
+    return result.rows;
+  }
+
   async listAll({ limit = 200 } = {}) {
     const safeLimit = Math.max(
       1,

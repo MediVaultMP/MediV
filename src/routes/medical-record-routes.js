@@ -16,7 +16,6 @@ export function createMedicalRecordRouter(authService, medicalRecordService) {
   const controller = createMedicalRecordController(medicalRecordService);
   router.use(authenticate(authService), authorize('patient'));
   router.get('/me/records', controller.listOwn);
-  router.post('/me/records', upload.single('document'), controller.uploadOwn);
   router.post('/me/records/:recordId/verify', controller.verifyOwn);
   router.post('/me/records/:recordId/register-on-chain', controller.registerOwnOnChain);
   router.patch('/me/records/:recordId/emergency-essential', controller.setOwnEmergencyEssential);

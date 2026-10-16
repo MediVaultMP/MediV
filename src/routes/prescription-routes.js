@@ -14,6 +14,7 @@ const upload = multer({
 export function createDoctorPrescriptionRouter(authService, prescriptionService) {
   const router = Router();
   const controller = createPrescriptionController(prescriptionService);
+  router.get('/prescriptions', authenticate(authService), authorize('patient'), controller.listForPatient);
   router.post('/prescriptions', authenticate(authService), authorize('doctor'), upload.single('document'), controller.create);
   return router;
 }
@@ -21,6 +22,14 @@ export function createDoctorPrescriptionRouter(authService, prescriptionService)
 export function createPharmacyPrescriptionRouter(authService, prescriptionService) {
   const router = Router();
   const controller = createPrescriptionController(prescriptionService);
+  router.get('/history', authenticate(authService), authorize('pharmacy'), controller.pharmacyHistory);
   router.get('/prescriptions/:prescriptionId/verify', authenticate(authService), authorize('pharmacy'), controller.verifyForPharmacy);
+  return router;
+}
+
+export function createPatientPrescriptionRouter(authService, prescriptionService) {
+  const router = Router();
+  const controller = createPrescriptionController(prescriptionService);
+  router.get('/me/prescriptions', authenticate(authService), authorize('patient'), controller.listForPatient);
   return router;
 }

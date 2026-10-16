@@ -312,7 +312,10 @@ export class MedicalRecordService {
             contentSha256: record.content_sha256
           });
 
-        blockchainValid = blockchainResult?.valid === true;
+        // RecordRegistryClient returns a boolean; older adapters may return { valid }.
+        blockchainValid = typeof blockchainResult === 'boolean'
+          ? blockchainResult
+          : blockchainResult?.valid === true;
       }
 
       return {
@@ -412,13 +415,11 @@ export class MedicalRecordService {
   }
 
   hashesMatch(actual, expected) {
+    if (typeof actual !== 'string' || typeof expected !== 'string' ||
+        !/^[a-f0-9]{64}$/i.test(actual) || !/^[a-f0-9]{64}$/i.test(expected)) return false;
     const actualBuffer = Buffer.from(actual, 'hex');
     const expectedBuffer = Buffer.from(expected, 'hex');
-
-    return (
-      actualBuffer.length === expectedBuffer.length &&
-      crypto.timingSafeEqual(actualBuffer, expectedBuffer)
-    );
+    return actualBuffer.length === expectedBuffer.length && crypto.timingSafeEqual(actualBuffer, expectedBuffer);
   }
 
   publicRecord(record) {

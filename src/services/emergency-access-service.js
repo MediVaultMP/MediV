@@ -15,7 +15,7 @@ export class EmergencyAccessService {
     const patient = await this.userRepository.findById(patientUserId);
     if (!patient || !doctor || doctor.role !== 'doctor') throw new AppError(404, 'Patient or doctor not found.', 'USER_NOT_FOUND');
     const now = Date.now();
-    if (expiresAt <= new Date(now) || expiresAt.getTime() > now + MAX_DURATION_MS) {
+    if (!(expiresAt instanceof Date) || Number.isNaN(expiresAt.getTime()) || expiresAt.getTime() <= now || expiresAt.getTime() > now + MAX_DURATION_MS) {
       throw new AppError(400, 'Emergency access must expire within one hour.', 'INVALID_EMERGENCY_EXPIRY');
     }
     const grant = await this.emergencyAccessRepository.create({ patientUserId, doctorUserId, reason, expiresAt });

@@ -29,6 +29,9 @@ export class ConsentService {
   }
 
   async grant(patientUserId, doctorId, expiresAt) {
+    if (!expiresAt || Number.isNaN(new Date(expiresAt).getTime()) || new Date(expiresAt).getTime() <= Date.now()) {
+      throw new AppError(400, 'Consent expiry must be a future date.', 'INVALID_CONSENT_EXPIRY');
+    }
     // Check if patient exists
     const patient = await this.userRepository.findById(patientUserId);
     if (!patient) {
@@ -51,7 +54,7 @@ export class ConsentService {
     const consent = await this.consentRepository.grant({
       patientUserId,
       doctorUserId: doctorId,
-      expiresAt: expiresAt || '2026-12-31T23:59:59Z',
+      expiresAt,
       transactionHash: null
     });
 

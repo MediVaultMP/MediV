@@ -56,7 +56,7 @@ export default function PatientDashboard() {
           <div className="card card-pad" style={{ marginBottom: 20, display: "flex", gap: 24, flexWrap: "wrap" }}>
             <div>
               <div style={{ fontSize: 11.5, color: "var(--muted)", marginBottom: 4 }}>Your Health ID</div>
-              <div className="mono" style={{ fontSize: 16, fontWeight: 700 }}>{storedUser?.healthId || "—"}</div>
+              <div className="mono" style={{ fontSize: 16, fontWeight: 700 }}>{storedUser?.patientId || storedUser?.healthId || "—"}</div>
               <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 4 }}>
                 Give this to a doctor so they can request access to your records.
               </div>
