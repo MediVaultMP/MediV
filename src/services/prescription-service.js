@@ -56,11 +56,30 @@ export class PrescriptionService {
     const doctor = await this.userRepository.findById(prescription.doctor_user_id);
     const signatureValid = this.isDoctorSignatureValid(prescription.content_sha256, prescription.doctor_signature, doctor?.blockchain_address);
     let contentHashValid = false;
-    try {
-      const stored = await this.medicalStorage.get({ key: prescription.storage_key });
-      const plaintext = this.fileEncryptionService.decrypt(stored.body, prescription);
-      contentHashValid = this.hashesMatch(this.createSha256(plaintext), prescription.content_sha256);
-    } catch { /* Integrity failure is reported without exposing storage/encryption details. */ }
+   try {
+    const stored = await this.medicalStorage.get({
+      key: prescription.storage_key
+    });
+
+    // Accept the standard storage response and legacy Buffer mocks.
+    const ciphertext = Buffer.isBuffer(stored) ? stored : stored?.body;
+
+    if (!Buffer.isBuffer(ciphertext)) {
+      throw new Error('Invalid storage response');
+    }
+
+    const plaintext = this.fileEncryptionService.decrypt(
+      ciphertext,
+      prescription
+    );
+
+    contentHashValid = this.hashesMatch(
+      this.createSha256(plaintext),
+      prescription.content_sha256
+    );
+  } catch {
+    // Report integrity failure without exposing storage details.
+  }
     let blockchainValid = false;
     if (prescription.blockchain_status === 'registered') {
       try { blockchainValid = await this.recordRegistryClient.verifyRecord({ recordId: prescription.id, contentSha256: prescription.content_sha256 }); } catch { blockchainValid = false; }

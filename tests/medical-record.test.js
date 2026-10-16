@@ -36,12 +36,23 @@ class MemoryRecords {
 }
 
 class MemoryStorage {
-  constructor() { this.objects = new Map(); }
-  async put({ key, body }) { this.objects.set(key, Buffer.from(body)); }
-  async get(key) { return this.objects.get(key); }
-  async delete(key) { this.objects.delete(key); }
-}
+  constructor() {
+    this.objects = new Map();
+  }
 
+  async put({ key, body }) {
+    this.objects.set(key, Buffer.from(body));
+  }
+
+  async get({ key }) {
+    const body = this.objects.get(key);
+    return body ? { body } : null;
+  }
+
+  async delete({ key }) {
+    this.objects.delete(key);
+  }
+}
 function api() {
   const authService = new AuthService({ userRepository: new MemoryUsers(), jwtSecret: 'test-secret-that-is-at-least-thirty-two-characters', jwtExpiresIn: '1h' });
   const medicalRecordService = new MedicalRecordService({
@@ -53,7 +64,7 @@ function api() {
 }
 
 async function register(app, role, email) {
-  return request(app).post('/api/v1/auth/register').send({ email, password: 'correct-horse-battery', role }).expect(201);
+  return request(app).post('/api/v1/auth/register').send({ email, password: 'Correct-Horse-Battery9!', role }).expect(201);
 }
 
 function tokenFor(role) {

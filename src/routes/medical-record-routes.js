@@ -15,6 +15,7 @@ export function createMedicalRecordRouter(authService, medicalRecordService) {
   const router = Router();
   const controller = createMedicalRecordController(medicalRecordService);
   router.use(authenticate(authService), authorize('patient'));
+  router.post('/me/records', upload.single('document'), controller.uploadOwn);
   router.get('/me/records', controller.listOwn);
   router.post('/me/records/:recordId/verify', controller.verifyOwn);
   router.post('/me/records/:recordId/register-on-chain', controller.registerOwnOnChain);

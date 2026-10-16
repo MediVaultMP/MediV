@@ -48,7 +48,7 @@ function api() {
 }
 
 async function register(app, role, email) {
-  return request(app).post('/api/v1/auth/register').send({ email, password: 'correct-horse-battery', role }).expect(201);
+  return request(app).post('/api/v1/auth/register').send({ email, password: 'Correct-Horse-Battery9!', role }).expect(201);
 }
 
 function tokenFor(role) {
