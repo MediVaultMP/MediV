@@ -18,7 +18,6 @@ const ICONS = {
   writeRx: "M9 3h6v4H9V3Zm-3 4h12v14H6V7Zm3 5h6M9 15h6",
   verify: "M9 12l2 2 4-4m5-2a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z",
   history: "M12 8v4l3 2M3 12a9 9 0 1 0 3.5-7.1M3 4v5h5",
-  emergency: "M12 3l9 16H3L12 3Zm0 6v5m0 3h.01",
 };
 
 function Icon({ d }) {
@@ -69,7 +68,6 @@ export default function Sidebar({ role, userLabel }) {
       { href: "/doctor/patients", label: "My patients", icon: ICONS.patients },
       { href: "/doctor/records/new", label: "Upload record", icon: ICONS.upload },
       { href: "/doctor/prescriptions/new", label: "Write prescription", icon: ICONS.writeRx },
-      { href: "/doctor/emergency", label: "Emergency access", icon: ICONS.emergency },
     ],
 
     pharmacy: [
@@ -122,7 +120,7 @@ export default function Sidebar({ role, userLabel }) {
       ))}
 
       <div className="sidebar-foot">
-        Signed in as {PORTAL_LABEL[role] || "Patient"}
+        Signed in as
         <div
           style={{
             color: "var(--ink)",

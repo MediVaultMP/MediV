@@ -16,6 +16,16 @@ export class PrescriptionRepository {
     return result.rows[0];
   }
 
+  async listForPatient(patientUserId) {
+    const result = await this.database.query(
+      `SELECT p.*, u.email AS doctor_email FROM prescriptions p
+       JOIN users u ON u.id = p.doctor_user_id
+       WHERE p.patient_user_id = $1 ORDER BY p.created_at DESC`,
+      [patientUserId]
+    );
+    return result.rows;
+  }
+
   async findById(id) {
     const result = await this.database.query('SELECT * FROM prescriptions WHERE id = $1', [id]);
     return result.rows[0] ?? null;

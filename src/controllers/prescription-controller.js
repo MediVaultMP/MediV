@@ -16,9 +16,15 @@ export function createPrescriptionController(prescriptionService) {
       const prescription = await prescriptionService.create(req.user.sub, patientUserId, req.file, { title, signature });
       res.status(201).json({ prescription });
     }),
+    listForPatient: asyncHandler(async (req, res) => {
+      res.json({ prescriptions: await prescriptionService.listForPatient(req.user.sub) });
+    }),
+    pharmacyHistory: asyncHandler(async (req, res) => {
+      res.json({ history: await prescriptionService.listPharmacyHistory(req.user.sub) });
+    }),
     verifyForPharmacy: asyncHandler(async (req, res) => {
       const { prescriptionId: id } = prescriptionId.parse(req.params);
-      res.json({ verification: await prescriptionService.verifyForPharmacy(id) });
+      res.json({ verification: await prescriptionService.verifyForPharmacy(id, req.user.sub) });
     })
   };
 }

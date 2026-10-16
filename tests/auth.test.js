@@ -53,20 +53,25 @@ function api() {
 }
 
 describe('authentication API', () => {
+  it('rejects passwords without mixed character classes', async () => {
+    const { app } = api();
+    await request(app).post('/api/v1/auth/register').send({ email: 'weak@example.com', password: '123456789012', role: 'patient' }).expect(400);
+    await request(app).post('/api/v1/auth/register').send({ email: 'letters@example.com', password: 'abcdefghijkl', role: 'patient' }).expect(400);
+  });
   it('registers, authenticates, and exposes the JWT user', async () => {
     const { app } = api();
-    const registration = await request(app).post('/api/v1/auth/register').send({ email: 'PATIENT@example.com', password: 'correct-horse-battery', role: 'patient' }).expect(201);
+    const registration = await request(app).post('/api/v1/auth/register').send({ email: 'PATIENT@example.com', password: 'Correct-Horse-Battery9!', role: 'patient' }).expect(201);
     expect(registration.body.user.email).toBe('patient@example.com');
     expect(registration.body.user.status).toBe('active');
     expect(registration.body.user).not.toHaveProperty('password_hash');
-    const login = await request(app).post('/api/v1/auth/login').send({ email: 'patient@example.com', password: 'correct-horse-battery' }).expect(200);
+    const login = await request(app).post('/api/v1/auth/login').send({ email: 'patient@example.com', password: 'Correct-Horse-Battery9!' }).expect(200);
     const me = await request(app).get('/api/v1/health/me').set('Authorization', `Bearer ${login.body.token}`).expect(200);
     expect(me.body.user).toMatchObject({ role: 'patient' });
   });
 
   it('rejects duplicate registrations and role violations', async () => {
     const { app } = api();
-    const input = { email: 'doctor@example.com', password: 'correct-horse-battery', role: 'doctor' };
+    const input = { email: 'doctor@example.com', password: 'Correct-Horse-Battery9!', role: 'doctor' };
     await request(app).post('/api/v1/auth/register').send(input).expect(201);
     await request(app).post('/api/v1/auth/register').send(input).expect(409);
     const patient = await request(app).post('/api/v1/auth/register').send({ ...input, email: 'patient@example.com', role: 'patient' }).expect(201);
@@ -75,21 +80,21 @@ describe('authentication API', () => {
 
   it('keeps doctor and pharmacy accounts pending until admin approval', async () => {
     const { app, userRepository } = api();
-    const registration = await request(app).post('/api/v1/auth/register').send({ email: 'doctor@example.com', password: 'correct-horse-battery', role: 'doctor' }).expect(201);
+    const registration = await request(app).post('/api/v1/auth/register').send({ email: 'doctor@example.com', password: 'Correct-Horse-Battery9!', role: 'doctor' }).expect(201);
     expect(registration.body.user.status).toBe('pending');
     expect(registration.body.token).toBeNull();
-    await request(app).post('/api/v1/auth/login').send({ email: 'doctor@example.com', password: 'correct-horse-battery' }).expect(403);
+    await request(app).post('/api/v1/auth/login').send({ email: 'doctor@example.com', password: 'Correct-Horse-Battery9!' }).expect(403);
 
     await userRepository.setStatus(registration.body.user.id, 'active');
-    await request(app).post('/api/v1/auth/login').send({ email: 'doctor@example.com', password: 'correct-horse-battery' }).expect(200);
+    await request(app).post('/api/v1/auth/login').send({ email: 'doctor@example.com', password: 'Correct-Horse-Battery9!' }).expect(200);
   });
 
   it('restricts admin endpoints to admin users', async () => {
     const { app } = api();
-    const patient = await request(app).post('/api/v1/auth/register').send({ email: 'patient@example.com', password: 'correct-horse-battery', role: 'patient' }).expect(201);
+    const patient = await request(app).post('/api/v1/auth/register').send({ email: 'patient@example.com', password: 'Correct-Horse-Battery9!', role: 'patient' }).expect(201);
     await request(app).get('/api/v1/admin/users').set('Authorization', `Bearer ${patient.body.token}`).expect(403);
 
-    const admin = await request(app).post('/api/v1/auth/register').send({ email: 'admin@example.com', password: 'correct-horse-battery', role: 'admin' }).expect(400);
+    const admin = await request(app).post('/api/v1/auth/register').send({ email: 'admin@example.com', password: 'Correct-Horse-Battery9!', role: 'admin' }).expect(400);
     expect(admin.body.error.code).toBe('VALIDATION_ERROR');
   });
 
@@ -97,7 +102,7 @@ describe('authentication API', () => {
     const { app, authService, userRepository, auditRepository } = api();
     const admin = await userRepository.create({ email: 'admin@example.com', passwordHash: 'hash', role: 'admin', status: 'active' });
     const token = authService.createToken(admin);
-    const doctor = await request(app).post('/api/v1/auth/register').send({ email: 'doctor@example.com', password: 'correct-horse-battery', role: 'doctor' }).expect(201);
+    const doctor = await request(app).post('/api/v1/auth/register').send({ email: 'doctor@example.com', password: 'Correct-Horse-Battery9!', role: 'doctor' }).expect(201);
 
     const pending = await request(app).get('/api/v1/admin/users/pending').set('Authorization', `Bearer ${token}`).expect(200);
     expect(pending.body.users).toHaveLength(1);

@@ -7,7 +7,7 @@ import { createPatientRouter } from './routes/patient-routes.js';
 import { createDoctorMedicalRecordRouter, createMedicalRecordRouter } from './routes/medical-record-routes.js';
 import { createConsentRouter, createDoctorConsentRouter } from './routes/consent-routes.js';
 import { createAccountRouter } from './routes/account-routes.js';
-import { createDoctorPrescriptionRouter, createPharmacyPrescriptionRouter } from './routes/prescription-routes.js';
+import { createDoctorPrescriptionRouter, createPharmacyPrescriptionRouter, createPatientPrescriptionRouter } from './routes/prescription-routes.js';
 import { createEmergencyAccessRouter } from './routes/emergency-access-routes.js';
 import { createAuditRouter } from './routes/audit-routes.js';
 import { createAdminRouter } from './routes/admin-routes.js';
@@ -27,6 +27,7 @@ export function createApp({ authService, patientProfileService, medicalRecordSer
   if (consentService) app.use('/api/v1/consents', createConsentRouter(authService, consentService));
   if (medicalRecordService && consentService) app.use('/api/v1/doctor', createDoctorMedicalRecordRouter(authService, medicalRecordService));
   if (prescriptionService) {
+    app.use('/api/v1/patients', createPatientPrescriptionRouter(authService, prescriptionService));
     app.use('/api/v1/doctor', createDoctorPrescriptionRouter(authService, prescriptionService));
     app.use('/api/v1/pharmacy', createPharmacyPrescriptionRouter(authService, prescriptionService));
   }

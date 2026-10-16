@@ -41,14 +41,24 @@ export class PrescriptionService {
     }
   }
 
-  async verifyForPharmacy(prescriptionId) {
+  async listForPatient(patientUserId) {
+    const rows = await this.prescriptionRepository.listForPatient(patientUserId);
+    return rows.map((row) => ({ ...this.publicPrescription(row), doctorEmail: row.doctor_email }));
+  }
+
+  async listPharmacyHistory(pharmacyUserId) {
+    return this.auditService.auditRepository.listForPharmacy(pharmacyUserId);
+  }
+
+  async verifyForPharmacy(prescriptionId, pharmacyUserId) {
     const prescription = await this.prescriptionRepository.findById(prescriptionId);
     if (!prescription) throw new AppError(404, 'Prescription not found.', 'PRESCRIPTION_NOT_FOUND');
     const doctor = await this.userRepository.findById(prescription.doctor_user_id);
     const signatureValid = this.isDoctorSignatureValid(prescription.content_sha256, prescription.doctor_signature, doctor?.blockchain_address);
     let contentHashValid = false;
     try {
-      const plaintext = this.fileEncryptionService.decrypt(await this.medicalStorage.get(prescription.storage_key), prescription);
+      const stored = await this.medicalStorage.get({ key: prescription.storage_key });
+      const plaintext = this.fileEncryptionService.decrypt(stored.body, prescription);
       contentHashValid = this.hashesMatch(this.createSha256(plaintext), prescription.content_sha256);
     } catch { /* Integrity failure is reported without exposing storage/encryption details. */ }
     let blockchainValid = false;
@@ -64,7 +74,7 @@ export class PrescriptionService {
       contentHashValid,
       blockchainValid
     };
-    await this.auditService?.record({ eventType: 'prescription_verified', actorUserId: null, subjectUserId: prescription.patient_user_id, resourceType: 'prescription', resourceId: prescription.id, metadata: { valid: verification.valid } });
+    await this.auditService?.record({ eventType: 'prescription_verified', actorUserId: pharmacyUserId, subjectUserId: prescription.patient_user_id, resourceType: 'prescription', resourceId: prescription.id, metadata: { valid: verification.valid, prescriptionId: prescription.id } });
     return verification;
   }
 
@@ -86,7 +96,11 @@ export class PrescriptionService {
   }
 
   createSha256(buffer) { return crypto.createHash('sha256').update(buffer).digest('hex'); }
-  hashesMatch(actual, expected) { return crypto.timingSafeEqual(Buffer.from(actual, 'hex'), Buffer.from(expected, 'hex')); }
+  hashesMatch(actual, expected) {
+    if (typeof actual !== 'string' || typeof expected !== 'string' || !/^[a-f0-9]{64}$/i.test(actual) || !/^[a-f0-9]{64}$/i.test(expected)) return false;
+    const a = Buffer.from(actual, 'hex'); const b = Buffer.from(expected, 'hex');
+    return a.length === b.length && crypto.timingSafeEqual(a, b);
+  }
   createStorageKey(patientId, filename) {
     const extension = path.extname(filename).toLowerCase().replace(/[^.a-z0-9]/g, '').slice(0, 12);
     return `prescriptions/${patientId}/${crypto.randomUUID()}${extension}`;

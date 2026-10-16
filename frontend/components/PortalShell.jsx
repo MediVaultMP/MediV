@@ -10,7 +10,7 @@ export default function PortalShell({ role, eyebrow, title, subtitle, children }
   useEffect(() => {
     try {
       const stored = JSON.parse(window.localStorage.getItem("sch_user") || "null");
-      if (stored?.name || stored?.email) setUserLabel(stored.name || stored.email);
+      if (stored?.name) setUserLabel(stored.name);
     } catch {
       // ignore malformed/missing localStorage value, keep default label
     }
@@ -22,7 +22,6 @@ export default function PortalShell({ role, eyebrow, title, subtitle, children }
       <main className="main">
         <div className="topbar">
           <div>
-            <span className={`portal-badge portal-${role}`}>{DEFAULT_LABEL[role] || "Patient"} Portal</span>
             {eyebrow && <p className="eyebrow">{eyebrow}</p>}
             <h1 className="page-title">{title}</h1>
             {subtitle && <p className="page-sub">{subtitle}</p>}

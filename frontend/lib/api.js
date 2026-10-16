@@ -1,6 +1,5 @@
 
 // lib/api.js
-import { fixtures } from "./fixtures";
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001/api/v1";
 
@@ -170,17 +169,6 @@ export const api = {
   getPatientRecords: () =>
     request("/patients/me/records").then((r) => r.records),
 
-  uploadRecord: ({ file, title, category }) => {
-    const form = new FormData();
-    form.append("document", file);
-    if (title) form.append("title", title);
-    if (category) form.append("category", category);
-    return request("/patients/me/records", {
-      method: "POST",
-      body: form,
-    }).then((r) => r.record);
-  },
-
   verifyRecord: (recordId) =>
     request(`/patients/me/records/${recordId}/verify`, {
       method: "POST",
@@ -349,7 +337,7 @@ export const api = {
         }))
     ),
 
-  // ---------- fixture-backed data ----------
-  getPatientPrescriptions: async () => fixtures.prescriptions,
-  getPharmacyHistory: async () => fixtures.pharmacyHistory,
+  // ---------- live data ----------
+  getPatientPrescriptions: () => request("/patients/me/prescriptions").then((r) => r.prescriptions),
+  getPharmacyHistory: () => request("/pharmacy/history").then((r) => r.history),
 };

@@ -9,7 +9,11 @@ export default function PatientPrescriptions() {
   const [copiedId, setCopiedId] = useState(null);
 
   useEffect(() => {
-    api.getPatientPrescriptions().then(setPrescriptions);
+    let active = true;
+    const refresh = () => api.getPatientPrescriptions().then((rows) => { if (active) setPrescriptions(rows); }).catch(() => {});
+    refresh();
+    const timer = window.setInterval(refresh, 5000);
+    return () => { active = false; window.clearInterval(timer); };
   }, []);
 
   function copyId(id) {

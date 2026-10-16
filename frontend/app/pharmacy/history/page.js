@@ -8,7 +8,11 @@ export default function PharmacyHistory() {
   const [history, setHistory] = useState(null);
 
   useEffect(() => {
-    api.getPharmacyHistory().then(setHistory);
+    let active = true;
+    const refresh = () => api.getPharmacyHistory().then((rows) => { if (active) setHistory(rows); }).catch(() => {});
+    refresh();
+    const timer = window.setInterval(refresh, 5000);
+    return () => { active = false; window.clearInterval(timer); };
   }, []);
 
   return (

@@ -70,6 +70,7 @@ export class AuthService {
       email: user.email,
       role: user.role,
       status: user.status,
+      patientId: user.role === 'patient' ? user.patient_id : null,
       blockchainAddress: user.blockchain_address,
       createdAt: user.created_at
     };

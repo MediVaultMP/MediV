@@ -5,7 +5,7 @@ export class UserRepository {
 
   async findByEmail(email) {
     const result = await this.database.query(
-      'SELECT id, email, password_hash, role, status, created_at FROM users WHERE email = $1',
+      'SELECT id, email, password_hash, role, status, patient_id, created_at FROM users WHERE email = $1',
       [email]
     );
     return result.rows[0] ?? null;
@@ -13,7 +13,7 @@ export class UserRepository {
 
   async findById(id) {
     const result = await this.database.query(
-      'SELECT id, email, role, status, blockchain_address FROM users WHERE id = $1',
+      'SELECT id, email, role, status, patient_id, blockchain_address FROM users WHERE id = $1',
       [id]
     );
     return result.rows[0] ?? null;
@@ -31,7 +31,7 @@ export class UserRepository {
     const result = await this.database.query(
       `INSERT INTO users (email, password_hash, role, status, blockchain_address)
        VALUES ($1, $2, $3, $4, $5)
-       RETURNING id, email, role, status, created_at, blockchain_address`,
+       RETURNING id, email, role, status, patient_id, created_at, blockchain_address`,
       [email, passwordHash, role, status, blockchainAddress]
     );
     return result.rows[0];
