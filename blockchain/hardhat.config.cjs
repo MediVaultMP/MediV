@@ -1,4 +1,5 @@
 require('@nomicfoundation/hardhat-ethers');
+require('@nomicfoundation/hardhat-chai-matchers');
 require('dotenv').config();
 
 const rpcUrl = process.env.BLOCKCHAIN_RPC_URL;
