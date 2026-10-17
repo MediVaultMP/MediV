@@ -1,4 +1,3 @@
-
 import crypto from 'node:crypto';
 import path from 'node:path';
 import { AppError } from '../utils/app-error.js';
@@ -6,6 +5,7 @@ import { AppError } from '../utils/app-error.js';
 export class MedicalRecordService {
   constructor({
     medicalRecordRepository,
+    recordAccessRequestRepository,
     medicalStorage,
     fileEncryptionService,
     userRepository,
@@ -14,6 +14,7 @@ export class MedicalRecordService {
     auditService
   }) {
     this.medicalRecordRepository = medicalRecordRepository;
+    this.recordAccessRequestRepository = recordAccessRequestRepository;
     this.medicalStorage = medicalStorage;
     this.fileEncryptionService = fileEncryptionService;
     this.userRepository = userRepository;
@@ -21,6 +22,10 @@ export class MedicalRecordService {
     this.consentService = consentService;
     this.auditService = auditService;
   }
+
+  // --------------------------------------------------
+  // UPLOAD MEDICAL RECORDS
+  // --------------------------------------------------
 
   async uploadOwnRecord(patientUserId, file, metadata) {
     return this.uploadRecord({
@@ -31,7 +36,12 @@ export class MedicalRecordService {
     });
   }
 
-  async uploadRecordForDoctor(doctorUserId, patientUserId, file, metadata) {
+  async uploadRecordForDoctor(
+    doctorUserId,
+    patientUserId,
+    file,
+    metadata
+  ) {
     await this.consentService.assertDoctorAccess(
       patientUserId,
       doctorUserId
@@ -75,8 +85,6 @@ export class MedicalRecordService {
 
     let record;
 
-    // Create the database record.
-    // If this fails, remove the uploaded file.
     try {
       record = await this.medicalRecordRepository.create({
         patientUserId,
@@ -98,9 +106,6 @@ export class MedicalRecordService {
       throw error;
     }
 
-    // Register the record on the blockchain.
-    // If registration fails, preserve the file and database record
-    // so registration can be retried later.
     if (this.recordRegistryClient) {
       record = await this.registerRecordOnChain(
         patientUserId,
@@ -120,9 +125,15 @@ export class MedicalRecordService {
     return this.publicRecord(record);
   }
 
+  // --------------------------------------------------
+  // PATIENT RECORDS
+  // --------------------------------------------------
+
   async listOwnRecords(patientUserId) {
     const records =
-      await this.medicalRecordRepository.listForPatient(patientUserId);
+      await this.medicalRecordRepository.listForPatient(
+        patientUserId
+      );
 
     return records.map((record) => this.publicRecord(record));
   }
@@ -166,27 +177,55 @@ export class MedicalRecordService {
     };
   }
 
+  // --------------------------------------------------
+  // DOCTOR: LIST PATIENT FILES
+  // --------------------------------------------------
+
   async listRecordsForDoctor(doctorUserId, patientUserId) {
-    await this.consentService.assertDoctorAccess(
-      patientUserId,
-      doctorUserId
-    );
+    if (doctorUserId === patientUserId) {
+      throw new AppError(
+        400,
+        'Invalid patient account.',
+        'INVALID_PATIENT'
+      );
+    }
+
+    // Only expose file metadata here. Do not retrieve file contents,
+    // storage keys, encryption keys, or decrypted documents.
+    //
+    // The doctor route must require authentication and the doctor role.
+    // A patient ID alone must never authorize downloading a document.
 
     const records =
-      await this.medicalRecordRepository.listForPatient(patientUserId);
+      await this.medicalRecordRepository.listForPatient(
+        patientUserId
+      );
 
-    return records.map((record) => this.publicRecord(record));
+    return records.map((record) => ({
+      id: record.id,
+      originalFilename: record.original_filename,
+      title: record.title,
+      category: record.category,
+      createdAt: record.created_at
+    }));
   }
 
-  async downloadRecordForDoctor(
+  // --------------------------------------------------
+  // DOCTOR: REQUEST ACCESS TO A SPECIFIC FILE
+  // --------------------------------------------------
+
+  async requestRecordAccess(
     doctorUserId,
     patientUserId,
     recordId
   ) {
-    await this.consentService.assertDoctorAccess(
-      patientUserId,
-      doctorUserId
-    );
+    if (doctorUserId === patientUserId) {
+      throw new AppError(
+        400,
+        'You cannot request access to your own patient account.',
+        'INVALID_ACCESS_REQUEST'
+      );
+    }
 
     const record =
       await this.medicalRecordRepository.findByIdForPatient(
@@ -202,6 +241,133 @@ export class MedicalRecordService {
       );
     }
 
+    const request =
+      await this.recordAccessRequestRepository.create({
+        recordId,
+        patientUserId,
+        doctorUserId
+      });
+
+    if (!request) {
+      throw new AppError(
+        409,
+        'An access request already exists and cannot be resubmitted.',
+        'ACCESS_REQUEST_EXISTS'
+      );
+    }
+
+    await this.auditService?.record({
+      eventType: 'record_access_requested',
+      actorUserId: doctorUserId,
+      subjectUserId: patientUserId,
+      resourceType: 'medical_record',
+      resourceId: record.id,
+      metadata: {
+        requestId: request.id,
+        status: request.status
+      }
+    });
+
+    return request;
+  }
+
+  // --------------------------------------------------
+  // PATIENT: VIEW ACCESS REQUESTS
+  // --------------------------------------------------
+
+  async listRecordAccessRequestsForPatient(patientUserId) {
+    return this.recordAccessRequestRepository.listForPatient(
+      patientUserId
+    );
+  }
+
+  // --------------------------------------------------
+  // PATIENT: APPROVE, REJECT OR REVOKE ACCESS
+  // --------------------------------------------------
+
+  async decideRecordAccessRequest(
+    patientUserId,
+    requestId,
+    status
+  ) {
+    if (!['approved', 'rejected', 'revoked'].includes(status)) {
+      throw new AppError(
+        400,
+        'Invalid access decision.',
+        'INVALID_ACCESS_DECISION'
+      );
+    }
+
+    const request =
+      await this.recordAccessRequestRepository.decide({
+        requestId,
+        patientUserId,
+        status
+      });
+
+    if (!request) {
+      throw new AppError(
+        404,
+        'Access request not found or cannot be updated.',
+        'ACCESS_REQUEST_NOT_FOUND'
+      );
+    }
+
+    await this.auditService?.record({
+      eventType: `record_access_${status}`,
+      actorUserId: patientUserId,
+      subjectUserId: request.doctor_user_id,
+      resourceType: 'medical_record',
+      resourceId: request.record_id,
+      metadata: {
+        requestId: request.id,
+        status
+      }
+    });
+
+    return request;
+  }
+
+  // --------------------------------------------------
+  // DOCTOR: DOWNLOAD A PATIENT FILE
+  // --------------------------------------------------
+
+  async downloadRecordForDoctor(
+    doctorUserId,
+    patientUserId,
+    recordId
+  ) {
+    const record =
+      await this.medicalRecordRepository.findByIdForPatient(
+        recordId,
+        patientUserId
+      );
+
+    if (!record) {
+      throw new AppError(
+        404,
+        'Medical record not found.',
+        'RECORD_NOT_FOUND'
+      );
+    }
+
+    // File-specific approval is required before accessing storage.
+    const approved =
+      await this.recordAccessRequestRepository.hasApproved({
+        recordId: record.id,
+        patientUserId,
+        doctorUserId
+      });
+
+    if (!approved) {
+      throw new AppError(
+        403,
+        'The patient has not approved access to this specific file.',
+        'RECORD_ACCESS_NOT_APPROVED'
+      );
+    }
+
+    // Retrieve and decrypt the file only after authorization.
     const { body: ciphertext } = await this.medicalStorage.get({
       key: record.storage_key
     });
@@ -218,7 +384,7 @@ export class MedicalRecordService {
       resourceType: 'medical_record',
       resourceId: record.id,
       metadata: {
-        access: 'consented_doctor'
+        access: 'approved_file_specific_request'
       }
     });
 
@@ -227,6 +393,10 @@ export class MedicalRecordService {
       body
     };
   }
+
+  // --------------------------------------------------
+  // EMERGENCY RECORD CLASSIFICATION
+  // --------------------------------------------------
 
   async setOwnRecordEmergencyEssential(
     patientUserId,
@@ -261,6 +431,10 @@ export class MedicalRecordService {
 
     return this.publicRecord(record);
   }
+
+  // --------------------------------------------------
+  // INTEGRITY VERIFICATION
+  // --------------------------------------------------
 
   async verifyOwnRecord(patientUserId, recordId) {
     const record =
@@ -312,10 +486,10 @@ export class MedicalRecordService {
             contentSha256: record.content_sha256
           });
 
-        // RecordRegistryClient returns a boolean; older adapters may return { valid }.
-        blockchainValid = typeof blockchainResult === 'boolean'
-          ? blockchainResult
-          : blockchainResult?.valid === true;
+        blockchainValid =
+          typeof blockchainResult === 'boolean'
+            ? blockchainResult
+            : blockchainResult?.valid === true;
       }
 
       return {
@@ -337,6 +511,10 @@ export class MedicalRecordService {
       throw error;
     }
   }
+
+  // --------------------------------------------------
+  // BLOCKCHAIN REGISTRATION
+  // --------------------------------------------------
 
   async registerOwnRecordOnChain(patientUserId, recordId) {
     const record =
@@ -397,6 +575,10 @@ export class MedicalRecordService {
     }
   }
 
+  // --------------------------------------------------
+  // UTILITIES
+  // --------------------------------------------------
+
   createStorageKey(patientUserId, originalFilename) {
     const extension = path
       .extname(originalFilename)
@@ -415,11 +597,22 @@ export class MedicalRecordService {
   }
 
   hashesMatch(actual, expected) {
-    if (typeof actual !== 'string' || typeof expected !== 'string' ||
-        !/^[a-f0-9]{64}$/i.test(actual) || !/^[a-f0-9]{64}$/i.test(expected)) return false;
+    if (
+      typeof actual !== 'string' ||
+      typeof expected !== 'string' ||
+      !/^[a-f0-9]{64}$/i.test(actual) ||
+      !/^[a-f0-9]{64}$/i.test(expected)
+    ) {
+      return false;
+    }
+
     const actualBuffer = Buffer.from(actual, 'hex');
     const expectedBuffer = Buffer.from(expected, 'hex');
-    return actualBuffer.length === expectedBuffer.length && crypto.timingSafeEqual(actualBuffer, expectedBuffer);
+
+    return (
+      actualBuffer.length === expectedBuffer.length &&
+      crypto.timingSafeEqual(actualBuffer, expectedBuffer)
+    );
   }
 
   publicRecord(record) {

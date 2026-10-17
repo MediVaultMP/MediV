@@ -10,3 +10,13 @@ uploads/
 test-*.jpg
 demo-record.pdf
 
+
+# Local secrets, backups, and generated files
+.env
+.env.*
+!.env.example
+*.dump
+*.backup
+node_modules/
+frontend/.next/
+coverage/

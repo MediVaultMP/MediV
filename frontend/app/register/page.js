@@ -1,4 +1,5 @@
 "use client";
+
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -6,6 +7,7 @@ import { api } from "../../lib/api";
 
 export default function RegisterPage() {
   const router = useRouter();
+
   const [role, setRole] = useState("patient");
   const [form, setForm] = useState({
     name: "",
@@ -21,37 +23,63 @@ export default function RegisterPage() {
 
   const needsLicense = role === "doctor" || role === "pharmacy";
 
+  const passwordChecks = {
+    length: form.password.length >= 12,
+    lowercase: /[a-z]/.test(form.password),
+    uppercase: /[A-Z]/.test(form.password),
+    number: /[0-9]/.test(form.password),
+    special: /[^A-Za-z0-9]/.test(form.password),
+  };
+
+  const passwordValid = Object.values(passwordChecks).every(Boolean);
+  const passwordsMatch =
+    form.password.length > 0 && form.password === form.confirm;
+
   function set(field, value) {
-    setForm((f) => ({ ...f, [field]: value }));
+    setForm((current) => ({ ...current, [field]: value }));
+    setError("");
   }
 
-  async function handleSubmit(e) {
-    e.preventDefault();
+  async function handleSubmit(event) {
+    event.preventDefault();
     setError("");
-    if (form.password.length < 12 || !/[a-z]/.test(form.password) || !/[A-Z]/.test(form.password) || !/[0-9]/.test(form.password) || !/[^A-Za-z0-9]/.test(form.password)) {
-      setError('Use at least 12 characters with uppercase and lowercase letters, a number, and a special character.');
+
+    if (!passwordValid) {
+      setError(
+        "Your password must contain at least 12 characters, including uppercase and lowercase letters, a number, and a special character."
+      );
       return;
     }
-    if (form.password !== form.confirm) {
-      setError("Passwords don't match.");
+
+    if (!passwordsMatch) {
+      setError("Passwords do not match.");
       return;
     }
+
     if (!agreed) {
       setError("You need to accept the consent statements to continue.");
       return;
     }
+
     setLoading(true);
+
     try {
-      // Backend only accepts { email, password, role }. There is no name or
-      // license_id column, and no admin-approval workflow — accounts are
-      // active immediately regardless of role.
-      await api.register({ role, email: form.email, password: form.password });
+      // Keep the payload compatible with the current backend.
+      await api.register({
+        role,
+        email: form.email.trim(),
+        password: form.password,
+      });
+
       setDone(true);
     } catch (err) {
       if (err.status === 409) {
         setError("That email is already registered. Try signing in instead.");
       } else {
-        setError(err.message || "Something went wrong creating your account. Please try again.");
+        setError(
+          err.message ||
+            "Something went wrong creating your account. Please try again."
+        );
       }
     } finally {
       setLoading(false);
@@ -68,6 +96,7 @@ export default function RegisterPage() {
           <div />
           <div />
         </div>
+
         <div className="auth-form-col">
           <div className="auth-card">
             <div className="eyebrow">Almost there</div>
@@ -76,6 +105,7 @@ export default function RegisterPage() {
                 ? "Your account is pending approval"
                 : "Welcome to MediVault"}
             </h2>
+
             <p
               style={{
                 color: "var(--muted)",
@@ -86,8 +116,9 @@ export default function RegisterPage() {
             >
               {needsLicense
                 ? "An admin needs to approve this account before you can sign in."
-                : "You can sign in right away and set up your consent wallet from your dashboard."}
+                : "You can sign in and set up your consent wallet from your dashboard."}
             </p>
+
             <Link
               href="/login"
               className="btn btn-primary"
@@ -153,6 +184,7 @@ export default function RegisterPage() {
           >
             Set up your account in a few steps.
           </h1>
+
           <p
             style={{
               color: "rgba(255,255,255,0.8)",
@@ -170,6 +202,7 @@ export default function RegisterPage() {
         <form className="auth-card" onSubmit={handleSubmit}>
           <div className="eyebrow">Create account</div>
           <h2 style={{ margin: "0 0 4px" }}>Get started</h2>
+
           <p
             style={{ color: "var(--muted)", fontSize: 13.5, marginBottom: 20 }}
           >
@@ -183,12 +216,17 @@ export default function RegisterPage() {
           </p>
 
           <div className="field">
-            <label>Account type</label>
-            <select value={role} onChange={(e) => setRole(e.target.value)}>
+            <label htmlFor="role">Account type</label>
+            <select
+              id="role"
+              value={role}
+              onChange={(event) => setRole(event.target.value)}
+            >
               <option value="patient">Patient</option>
               <option value="doctor">Doctor</option>
               <option value="pharmacy">Pharmacy</option>
             </select>
+
             {needsLicense && (
               <div className="field-hint">
                 Doctor and pharmacy accounts are reviewed by an admin before
@@ -198,62 +236,104 @@ export default function RegisterPage() {
           </div>
 
           <div className="field">
-            <label>Full name</label>
+            <label htmlFor="name">Full name</label>
             <input
+              id="name"
+              autoComplete="name"
               required
               value={form.name}
-              onChange={(e) => set("name", e.target.value)}
-              placeholder="Prapthi Rao"
+              onChange={(event) => set("name", event.target.value)}
+              placeholder="Your full name"
             />
           </div>
 
           <div className="field">
-            <label>Email address</label>
+            <label htmlFor="email">Email address</label>
             <input
+              id="email"
               type="email"
+              autoComplete="email"
               required
               value={form.email}
-              onChange={(e) => set("email", e.target.value)}
+              onChange={(event) => set("email", event.target.value)}
               placeholder="you@example.com"
             />
           </div>
 
           {needsLicense && (
             <div className="field">
-              <label>
+              <label htmlFor="license_id">
                 {role === "doctor"
                   ? "Medical license number"
                   : "Pharmacy license number"}
               </label>
               <input
+                id="license_id"
                 required
                 value={form.license_id}
-                onChange={(e) => set("license_id", e.target.value)}
-                placeholder="MED-2291"
+                onChange={(event) => set("license_id", event.target.value)}
+                placeholder="Enter your license number"
               />
             </div>
           )}
 
           <div className="field">
-            <label>Password</label>
+            <label htmlFor="password">Password</label>
             <input
+              id="password"
               type="password"
+              autoComplete="new-password"
               required
+              minLength={12}
               value={form.password}
-              onChange={(e) => set("password", e.target.value)}
-              placeholder="••••••••"
+              onChange={(event) => set("password", event.target.value)}
+              placeholder="At least 12 characters"
+              aria-describedby="password-requirements"
             />
-            <div className="field-hint">Use 12+ characters, including uppercase and lowercase letters, a number, and a special character. Passwords made only of letters or only of numbers are not allowed.</div>
+
+            <div
+              id="password-requirements"
+              className="field-hint"
+              style={{ lineHeight: 1.8 }}
+            >
+              <div>Password requirements:</div>
+              <div>
+                {passwordChecks.length ? "✓" : "○"} At least 12 characters
+              </div>
+              <div>
+                {passwordChecks.uppercase ? "✓" : "○"} One uppercase letter
+              </div>
+              <div>
+                {passwordChecks.lowercase ? "✓" : "○"} One lowercase letter
+              </div>
+              <div>
+                {passwordChecks.number ? "✓" : "○"} One number
+              </div>
+              <div>
+                {passwordChecks.special ? "✓" : "○"} One special character
+              </div>
+            </div>
           </div>
+
           <div className="field">
-            <label>Confirm password</label>
+            <label htmlFor="confirm">Confirm password</label>
             <input
+              id="confirm"
               type="password"
+              autoComplete="new-password"
               required
               value={form.confirm}
-              onChange={(e) => set("confirm", e.target.value)}
-              placeholder="••••••••"
+              onChange={(event) => set("confirm", event.target.value)}
+              placeholder="Re-enter your password"
             />
+
+            {form.confirm.length > 0 && (
+              <div className="field-hint">
+                {passwordsMatch
+                  ? "Passwords match."
+                  : "Passwords do not match."}
+              </div>
+            )}
           </div>
 
           <label
@@ -269,13 +349,17 @@ export default function RegisterPage() {
             <input
               type="checkbox"
               checked={agreed}
-              onChange={(e) => setAgreed(e.target.checked)}
+              onChange={(event) => setAgreed(event.target.checked)}
               style={{ width: "auto", marginTop: 2 }}
             />
             I agree to the terms of service and privacy policy.
           </label>
 
-          {error && <div className="error-text">{error}</div>}
+          {error && (
+            <div className="error-text" role="alert">
+              {error}
+            </div>
+          )}
 
           <button
             className="btn btn-primary"

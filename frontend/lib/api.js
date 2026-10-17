@@ -1,16 +1,18 @@
 
-// lib/api.js
-
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001/api/v1";
+const BASE_URL =
+  process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001/api/v1";
 
 function authHeaders() {
   if (typeof window === "undefined") return {};
+
   const token = window.localStorage.getItem("sch_token");
+
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
 function normalizeUser(user) {
   const status = user.status || user.approval_status || "active";
+
   return {
     ...user,
     name: user.name || user.email,
@@ -25,7 +27,11 @@ function normalizeUser(user) {
 function normalizeAuditEvent(event) {
   return {
     ...event,
-    actor: event.actor || event.actor_user_id || event.actorUserId || "system",
+    actor:
+      event.actor ||
+      event.actor_user_id ||
+      event.actorUserId ||
+      "system",
     action: event.action || event.event_type || event.eventType,
     target:
       event.target ||
@@ -73,8 +79,15 @@ async function request(path, { method = "GET", body } = {}) {
     method,
     headers: isFormData
       ? authHeaders()
-      : { "Content-Type": "application/json", ...authHeaders() },
-    body: isFormData ? body : body ? JSON.stringify(body) : undefined,
+      : {
+          "Content-Type": "application/json",
+          ...authHeaders(),
+        },
+    body: isFormData
+      ? body
+      : body
+        ? JSON.stringify(body)
+        : undefined,
   });
 
   const data = await res.json().catch(() => ({}));
@@ -83,9 +96,11 @@ async function request(path, { method = "GET", body } = {}) {
     const err = new Error(
       data?.error?.message || `Request failed: ${res.status}`
     );
+
     err.status = res.status;
     err.code = data?.error?.code;
     err.details = data?.error?.details;
+
     throw err;
   }
 
@@ -98,42 +113,55 @@ async function downloadFile(path, filename) {
   });
 
   if (!res.ok) {
-    const err = new Error(`Download failed: ${res.status}`);
+    const data = await res.json().catch(() => ({}));
+
+    const err = new Error(
+      data?.error?.message || `Download failed: ${res.status}`
+    );
+
     err.status = res.status;
+    err.code = data?.error?.code;
+
     throw err;
   }
 
   const blob = await res.blob();
   const url = window.URL.createObjectURL(blob);
   const a = document.createElement("a");
+
   a.href = url;
   a.download = filename || "download";
+
   document.body.appendChild(a);
   a.click();
   a.remove();
+
   window.URL.revokeObjectURL(url);
 }
 
 export const api = {
-  // ---------- auth ----------
-  // Backend schema: { email, password, role: 'patient'|'doctor'|'pharmacy' }.
-  // No name, no license_id, no admin role.
+  // ---------- authentication ----------
+
   register: ({ email, password, role }) =>
     request("/auth/register", {
       method: "POST",
       body: { email, password, role },
-    }).then((r) => ({ user: r.user, token: r.token })),
+    }).then((r) => ({
+      user: r.user,
+      token: r.token,
+    })),
 
-  // The backend returns the user's actual role on login.
   login: ({ email, password }) =>
     request("/auth/login", {
       method: "POST",
       body: { email, password },
     }),
 
-  getMe: () => request("/health/me").then((r) => r.user),
+  getMe: () =>
+    request("/health/me").then((r) => r.user),
 
   // ---------- patient profile ----------
+
   getPatientProfile: () =>
     request("/patients/me/profile").then((r) => r.profile ?? r),
 
@@ -150,6 +178,7 @@ export const api = {
     }),
 
   // ---------- wallet ----------
+
   setPatientWallet: (blockchainAddress) =>
     request("/patients/me/wallet", {
       method: "PUT",
@@ -163,11 +192,28 @@ export const api = {
     }),
 
   // ---------- patient: medical records ----------
-  // Returned record shape:
-  // { id, patientUserId, originalFilename, contentType, sizeBytes,
-  //   title, category, blockchainStatus, createdAt }
+
   getPatientRecords: () =>
     request("/patients/me/records").then((r) => r.records),
+
+  uploadOwnRecord: (file, { title, category } = {}) => {
+    const form = new FormData();
+
+    form.append("document", file);
+
+    if (title) {
+      form.append("title", title);
+    }
+
+    if (category) {
+      form.append("category", category);
+    }
+
+    return request("/patients/me/records", {
+      method: "POST",
+      body: form,
+    }).then((r) => r.record);
+  },
 
   verifyRecord: (recordId) =>
     request(`/patients/me/records/${recordId}/verify`, {
@@ -186,19 +232,22 @@ export const api = {
     }).then((r) => r.record),
 
   downloadOwnRecord: (recordId, filename) =>
-    downloadFile(`/patients/me/records/${recordId}/download`, filename),
+    downloadFile(
+      `/patients/me/records/${recordId}/download`,
+      filename
+    ),
 
-  // ---------- doctor: patients + records ----------
-  // Backend patient shape:
-  // { patientUserId, patientEmail, expiresAt, createdAt, updatedAt }
-  // Normalization supplies frontend display fields.
+  // ---------- doctor: patients and records ----------
+
   getDoctorPatients: () =>
     request("/doctor/patients").then((r) =>
-      r.patients.map(normalizeDoctorPatient)
+      (r.patients || []).map(normalizeDoctorPatient)
     ),
 
   getPatientRecordsForDoctor: (patientId) =>
-    request(`/doctor/patients/${patientId}/records`).then((r) => r.records),
+    request(`/doctor/patients/${patientId}/records`).then(
+      (r) => r.records
+    ),
 
   downloadRecordForDoctor: (patientId, recordId, filename) =>
     downloadFile(
@@ -215,8 +264,13 @@ export const api = {
     file,
   }) => {
     const form = new FormData();
+
     form.append("document", file);
-    if (title) form.append("title", title);
+
+    if (title) {
+      form.append("title", title);
+    }
+
     if (category || record_type) {
       form.append("category", category || record_type);
     }
@@ -230,17 +284,55 @@ export const api = {
     ).then((r) => r.record);
   },
 
+  // ---------- file-specific access requests ----------
+
+  requestRecordAccess: (patientId, recordId) =>
+    request(
+      `/doctor/patients/${patientId}/records/${recordId}/access-request`,
+      {
+        method: "POST",
+      }
+    ).then((r) => r.request),
+
+  getRecordAccessRequests: () =>
+    request("/patients/me/record-access-requests").then(
+      (r) => r.requests
+    ),
+
+  approveRecordAccess: (requestId) =>
+    request(
+      `/patients/me/record-access-requests/${requestId}/approve`,
+      {
+        method: "POST",
+      }
+    ).then((r) => r.request),
+
+  rejectRecordAccess: (requestId) =>
+    request(
+      `/patients/me/record-access-requests/${requestId}/reject`,
+      {
+        method: "POST",
+      }
+    ).then((r) => r.request),
+
+  revokeRecordAccess: (requestId) =>
+    request(
+      `/patients/me/record-access-requests/${requestId}/revoke`,
+      {
+        method: "POST",
+      }
+    ).then((r) => r.request),
+
   // ---------- consents ----------
-  // Patients grant consent directly; no request/approve flow.
-  // Returned consent items are already active.
+
   getConsents: () =>
     request("/consents").then((r) =>
-      r.consents.map(normalizeConsent)
+      (r.consents || []).map(normalizeConsent)
     ),
 
   getPatientConsents: () =>
     request("/consents").then((r) =>
-      r.consents.map(normalizeConsent)
+      (r.consents || []).map(normalizeConsent)
     ),
 
   grantConsent: (doctorId, expiresAt) =>
@@ -255,14 +347,17 @@ export const api = {
     }).then((r) => r.consent),
 
   // ---------- prescriptions ----------
-  // Prescriptions are signed file uploads verified by hash
-  // and doctor wallet signature.
+
   createPrescription: ({ patientId, title, signature, file }) => {
     const form = new FormData();
+
     form.append("document", file);
     form.append("patientId", patientId);
     form.append("signature", signature);
-    if (title) form.append("title", title);
+
+    if (title) {
+      form.append("title", title);
+    }
 
     return request("/doctor/prescriptions", {
       method: "POST",
@@ -270,14 +365,21 @@ export const api = {
     }).then((r) => r.prescription);
   },
 
-  // Returns verification details including signature, content hash,
-  // and blockchain validity.
   verifyPrescription: (prescriptionId) =>
     request(`/pharmacy/prescriptions/${prescriptionId}/verify`).then(
       (r) => r.verification
     ),
 
-  // ---------- emergency access (doctor) ----------
+  getPatientPrescriptions: () =>
+    request("/patients/me/prescriptions").then(
+      (r) => r.prescriptions
+    ),
+
+  getPharmacyHistory: () =>
+    request("/pharmacy/history").then((r) => r.history),
+
+  // ---------- emergency access ----------
+
   grantEmergencyAccess: ({ patientId, reason, expiresAt }) =>
     request("/emergency-access", {
       method: "POST",
@@ -285,20 +387,20 @@ export const api = {
     }),
 
   getEmergencyEssentialRecords: (patientId) =>
-    request(`/emergency-access/patients/${patientId}/records`).then(
-      (r) => r.records
-    ),
+    request(
+      `/emergency-access/patients/${patientId}/records`
+    ).then((r) => r.records),
 
-  // ---------- audit (patient) ----------
+  // ---------- audit ----------
+
   getMyAuditLog: () =>
     request("/audit-events/me").then((r) => r.events),
 
   // ---------- admin ----------
-  // These endpoints are marked as not implemented in the backend.
-  // Do not wire real network calls to them until implemented.
+
   getPendingApprovals: () =>
     request("/admin/users/pending").then((r) =>
-      r.users.map(normalizeUser)
+      (r.users || []).map(normalizeUser)
     ),
 
   approveUser: (id) =>
@@ -313,31 +415,28 @@ export const api = {
 
   getAllUsers: () =>
     request("/admin/users").then((r) =>
-      r.users.map(normalizeUser)
+      (r.users || []).map(normalizeUser)
     ),
 
   getAuditLog: () =>
     request("/admin/audit-events").then((r) =>
-      r.events.map(normalizeAuditEvent)
+      (r.events || []).map(normalizeAuditEvent)
     ),
 
   getChainLog: () =>
     request("/admin/audit-events").then((r) =>
-      r.events
+      (r.events || [])
         .filter(
           (event) =>
             event.blockchain_tx_hash || event.blockchainTxHash
         )
         .map((event) => ({
-          tx_id: event.blockchain_tx_hash || event.blockchainTxHash,
+          tx_id:
+            event.blockchain_tx_hash || event.blockchainTxHash,
           action_type: event.event_type || event.eventType,
           payload_hash:
             event.resource_id || event.resourceId || "recorded",
           created_at: event.created_at || event.createdAt,
         }))
     ),
-
-  // ---------- live data ----------
-  getPatientPrescriptions: () => request("/patients/me/prescriptions").then((r) => r.prescriptions),
-  getPharmacyHistory: () => request("/pharmacy/history").then((r) => r.history),
 };
