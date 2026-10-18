@@ -9,6 +9,7 @@
     "deploy:testnet": "npx hardhat run scripts/deploy.js --network medivaultTestnet"
   },
   "devDependencies": {
+    "@nomicfoundation/hardhat-chai-matchers": "^2.1.2",
     "@nomicfoundation/hardhat-ethers": "^3.0.8",
     "chai": "^4.5.0",
     "dotenv": "^16.6.1",
