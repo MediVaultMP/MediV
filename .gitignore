@@ -20,3 +20,5 @@ demo-record.pdf
 node_modules/
 frontend/.next/
 coverage/
+blockchain/artifacts/
+blockchain/cache/
