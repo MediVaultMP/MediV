@@ -28,7 +28,7 @@ class RecordRepository {
 
 class Storage {
   async put({ body }) { this.body = body; }
-  async get() { return this.body; }
+  async get() { return { body: this.body }; }
   async delete() {}
 }
 
@@ -58,3 +58,81 @@ describe('blockchain record registration', () => {
     }]);
   });
 });
+  it('marks the record as failed when blockchain registration fails', async () => {
+    const repository = new RecordRepository();
+
+    const service = new MedicalRecordService({
+      medicalRecordRepository: repository,
+      medicalStorage: new Storage(),
+      fileEncryptionService: new FileEncryptionService({
+        masterKey: Buffer.alloc(32, 2)
+      }),
+      userRepository: {
+        findById: async () => ({
+          blockchain_address: '0x1111111111111111111111111111111111111111'
+        })
+      },
+      recordRegistryClient: {
+        registerRecord: async () => {
+          throw new Error('Simulated blockchain failure');
+        }
+      }
+    });
+
+    await expect(
+      service.uploadOwnRecord('patient-1', {
+        buffer: Buffer.from('medical document'),
+        originalname: 'record.pdf',
+        mimetype: 'application/pdf',
+        size: 16
+      }, {})
+    ).rejects.toMatchObject({
+      statusCode: 502,
+      code: 'BLOCKCHAIN_REGISTRATION_FAILED'
+    });
+
+    expect(repository.records[0].blockchain_status).toBe('failed');
+  });
+  it('reports invalid when local integrity passes but blockchain verification fails', async () => {
+    const repository = new RecordRepository();
+
+    const service = new MedicalRecordService({
+      medicalRecordRepository: repository,
+      medicalStorage: new Storage(),
+      fileEncryptionService: new FileEncryptionService({
+        masterKey: Buffer.alloc(32, 2)
+      }),
+      userRepository: {
+        findById: async () => ({
+          blockchain_address: '0x1111111111111111111111111111111111111111'
+        })
+      },
+      recordRegistryClient: {
+        registerRecord: async () => ({
+          blockchainRecordId: `0x${'a'.repeat(64)}`,
+          transactionHash: `0x${'b'.repeat(64)}`,
+          registeredAt: new Date()
+        }),
+        verifyRecord: async () => false
+      }
+    });
+
+    const uploaded = await service.uploadOwnRecord(
+      'patient-1',
+      {
+        buffer: Buffer.from('medical document'),
+        originalname: 'record.pdf',
+        mimetype: 'application/pdf',
+        size: 16
+      },
+      {}
+    );
+
+    await expect(
+      service.verifyOwnRecord('patient-1', uploaded.id)
+    ).resolves.toMatchObject({
+      valid: false,
+      localValid: true,
+      blockchainValid: false
+    });
+  });
