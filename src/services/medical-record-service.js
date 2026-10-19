@@ -351,6 +351,12 @@ export class MedicalRecordService {
       );
     }
 
+    // Re-check current patient-doctor consent before every download.
+    // A previous file approval must not bypass revoked or expired consent.
+    await this.consentService.assertDoctorAccess(
+      patientUserId,
+      doctorUserId
+    );
     // File-specific approval is required before accessing storage.
     const approved =
       await this.recordAccessRequestRepository.hasApproved({
