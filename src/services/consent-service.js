@@ -104,16 +104,20 @@ export class ConsentService {
     };
   }
 
-  async assertDoctorAccess(patientUserId, doctorUserId) {
-    const consent = await this.consentRepository.findActive(patientUserId, doctorUserId);
+      async assertDoctorAccess(patientUserId, doctorUserId) {
+    const consent = await this.consentRepository.findActive(
+      patientUserId,
+      doctorUserId
+    );
+
     if (!consent) {
-      throw new AppError(403, 'You do not have access to this patient\'s records.', 'ACCESS_DENIED');
+      throw new AppError(
+        403,
+        'Consent is required to access this patient\'s records.',
+        'CONSENT_REQUIRED'
+      );
     }
-    return {
-      id: consent.id,
-      patientUserId: consent.patient_user_id,
-      doctorUserId: consent.doctor_user_id,
-      expiresAt: consent.expires_at
-    };
+
+    return undefined;
   }
 }

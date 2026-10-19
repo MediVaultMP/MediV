@@ -36,10 +36,22 @@ class MemoryRecords {
 }
 
 class MemoryStorage {
-  constructor() { this.objects = new Map(); }
-  async put({ key, body }) { this.objects.set(key, Buffer.from(body)); }
-  async get(key) { return this.objects.get(key); }
-  async delete(key) { this.objects.delete(key); }
+  constructor() {
+    this.objects = new Map();
+  }
+
+  async put({ key, body }) {
+    this.objects.set(key, Buffer.from(body));
+  }
+
+  async get({ key }) {
+    const body = this.objects.get(key);
+    return body === undefined ? undefined : { body };
+  }
+
+  async delete(key) {
+    this.objects.delete(key);
+  }
 }
 
 function api() {

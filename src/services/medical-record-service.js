@@ -312,7 +312,10 @@ export class MedicalRecordService {
             contentSha256: record.content_sha256
           });
 
-        blockchainValid = blockchainResult?.valid === true;
+                blockchainValid =
+          typeof blockchainResult === 'boolean'
+            ? blockchainResult
+            : blockchainResult?.valid === true;
       }
 
       return {

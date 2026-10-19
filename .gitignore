@@ -9,4 +9,6 @@ uploads/
 *.txt
 test-*.jpg
 demo-record.pdf
+blockchain/artifacts/
+blockchain/cache/
 
